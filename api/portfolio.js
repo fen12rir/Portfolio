@@ -1,43 +1,10 @@
 // Vercel serverless function for portfolio API routes
 import express from 'express';
-import mongoose from 'mongoose';
 import Portfolio from '../server/models/Portfolio.js';
 import { defaultPortfolioData } from '../server/config/defaultData.js';
+import { connectMongo, isMongoConnected } from './mongodb.js';
 
 const router = express.Router();
-
-// Helper function to check if MongoDB is connected
-const isMongoConnected = () => {
-  return mongoose.connection.readyState === 1;
-};
-
-// Initialize MongoDB connection
-const connectMongo = async () => {
-  if (mongoose.connection.readyState === 1) {
-    return; // Already connected
-  }
-
-  let MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/portfolio';
-
-  const mongooseOptions = {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-    serverSelectionTimeoutMS: 5000,
-    socketTimeoutMS: 45000,
-  };
-
-  if (MONGODB_URI.includes('mongodb+srv://') && !MONGODB_URI.includes('retryWrites')) {
-    const separator = MONGODB_URI.includes('?') ? '&' : '?';
-    MONGODB_URI = `${MONGODB_URI}${separator}retryWrites=true&w=majority`;
-  }
-
-  try {
-    await mongoose.connect(MONGODB_URI, mongooseOptions);
-    console.log('✅ Connected to MongoDB Atlas');
-  } catch (error) {
-    console.error('❌ MongoDB connection error:', error.message);
-  }
-};
 
 // Get portfolio data
 router.get('/', async (req, res) => {
