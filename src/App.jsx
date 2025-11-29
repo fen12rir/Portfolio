@@ -83,7 +83,7 @@ const AppContent = () => {
       <Suspense fallback={
         <div className="min-h-screen flex items-center justify-center bg-stone-900">
           <div className="text-2xl font-bold bg-gradient-to-r from-teal-500 to-emerald-400 bg-clip-text text-transparent">
-            Loading...
+            DIO
           </div>
         </div>
       }>
@@ -98,7 +98,7 @@ const AppContent = () => {
         <Suspense fallback={
           <div className="min-h-screen flex items-center justify-center bg-stone-900">
             <div className="text-2xl font-bold bg-gradient-to-r from-teal-500 to-emerald-400 bg-clip-text text-transparent">
-              Loading...
+              DIO
             </div>
           </div>
         }>
@@ -110,7 +110,7 @@ const AppContent = () => {
       <Suspense fallback={
         <div className="min-h-screen flex items-center justify-center bg-stone-900">
           <div className="text-2xl font-bold bg-gradient-to-r from-teal-500 to-emerald-400 bg-clip-text text-transparent">
-            Loading...
+            DIO
           </div>
         </div>
       }>
