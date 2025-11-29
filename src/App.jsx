@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { PortfolioProvider, usePortfolio } from './context/PortfolioContext';
 import Header from './components/Header';
@@ -10,8 +10,10 @@ import Certificates from './components/Certificates';
 import ImageGallery from './components/ImageGallery';
 import Contact from './components/Contact';
 import Footer from './components/Footer';
-import Login from './components/Login';
-import AdminDashboard from './components/AdminDashboard';
+
+// Lazy load admin components (not needed on initial page load)
+const Login = lazy(() => import('./components/Login'));
+const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
 
 const AppContent = () => {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
@@ -60,8 +62,8 @@ const AppContent = () => {
     }
   }, [currentPath, isAuthenticated, isLoading]);
 
-  // Show loading screen while auth or portfolio data is loading
-  if (isLoading || !portfolioData) {
+  // Only show loading screen for auth, not portfolio data (we have defaults)
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-stone-900">
         <div className="text-center">
@@ -77,14 +79,44 @@ const AppContent = () => {
   }
 
   if (currentPath === '/login' || currentPath === '#/login') {
-    return <Login />;
+    return (
+      <Suspense fallback={
+        <div className="min-h-screen flex items-center justify-center bg-stone-900">
+          <div className="text-2xl font-bold bg-gradient-to-r from-teal-500 to-emerald-400 bg-clip-text text-transparent">
+            Loading...
+          </div>
+        </div>
+      }>
+        <Login />
+      </Suspense>
+    );
   }
 
   if (currentPath === '/admin' || currentPath === '#/admin') {
     if (!isAuthenticated) {
-      return <Login />;
+      return (
+        <Suspense fallback={
+          <div className="min-h-screen flex items-center justify-center bg-stone-900">
+            <div className="text-2xl font-bold bg-gradient-to-r from-teal-500 to-emerald-400 bg-clip-text text-transparent">
+              Loading...
+            </div>
+          </div>
+        }>
+          <Login />
+        </Suspense>
+      );
     }
-    return <AdminDashboard />;
+    return (
+      <Suspense fallback={
+        <div className="min-h-screen flex items-center justify-center bg-stone-900">
+          <div className="text-2xl font-bold bg-gradient-to-r from-teal-500 to-emerald-400 bg-clip-text text-transparent">
+            Loading...
+          </div>
+        </div>
+      }>
+        <AdminDashboard />
+      </Suspense>
+    );
   }
 
   return (

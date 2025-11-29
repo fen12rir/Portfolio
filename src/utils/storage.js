@@ -8,8 +8,8 @@ let cachedData = null;
 let isLoading = false;
 let loadPromise = null;
 
-// Initialize cache on module load
-const initializeCache = async () => {
+// Initialize cache with timeout to prevent blocking
+const initializeCache = async (timeout = 3000) => {
   if (cachedData) return cachedData;
   if (loadPromise) return loadPromise;
   
@@ -17,12 +17,17 @@ const initializeCache = async () => {
     try {
       isLoading = true;
       const apiUrl = `${API_BASE_URL}/portfolio`;
-      console.log('Fetching portfolio data from:', apiUrl);
       
-      const response = await fetch(apiUrl);
+      // Create a timeout promise
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timeout')), timeout);
+      });
       
-      console.log('API Response status:', response.status, response.statusText);
-      console.log('API Response headers:', Object.fromEntries(response.headers.entries()));
+      // Race between fetch and timeout
+      const response = await Promise.race([
+        fetch(apiUrl),
+        timeoutPromise
+      ]);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -31,28 +36,16 @@ const initializeCache = async () => {
       // Check if response is actually JSON before parsing
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
-        // If we got HTML or other non-JSON, log it and use default data
-        const text = await response.text();
-        console.warn('⚠️ Received non-JSON response from API:', {
-          url: apiUrl,
-          contentType,
-          status: response.status,
-          preview: text.substring(0, 200)
-        });
-        console.warn('💡 This usually means the API route is not deployed or not accessible.');
-        console.warn('💡 Check that /api/portfolio is properly configured in Vercel.');
+        // If we got HTML or other non-JSON, use default data
         cachedData = defaultPortfolioData;
         return defaultPortfolioData;
       }
       
       const data = await response.json();
-      console.log('✅ Successfully loaded portfolio data');
       cachedData = data;
       return data;
     } catch (error) {
-      console.error('❌ Error loading portfolio data:', error);
-      console.error('💡 Falling back to default portfolio data');
-      // Fallback to default data if API fails
+      // Silently fallback to default data on timeout or error
       cachedData = defaultPortfolioData;
       return defaultPortfolioData;
     } finally {
@@ -64,8 +57,8 @@ const initializeCache = async () => {
   return loadPromise;
 };
 
-// Initialize cache immediately
-initializeCache();
+// Don't initialize cache on module load - let it load on demand
+// This prevents blocking the initial render
 
 // Clear cache to force refresh
 export const clearCache = () => {
@@ -94,7 +87,6 @@ export const refreshPortfolioData = async () => {
 
 export const savePortfolioData = async (data) => {
   try {
-    console.log(`Saving to ${API_BASE_URL}/portfolio`);
     const response = await fetch(`${API_BASE_URL}/portfolio`, {
       method: 'POST',
       headers: {
@@ -114,7 +106,6 @@ export const savePortfolioData = async (data) => {
         console.warn('Received non-JSON error response:', text.substring(0, 100));
       }
       const errorMessage = errorData.error || errorData.message || `HTTP error! status: ${response.status}`;
-      console.error('Save failed with status:', response.status, errorData);
       throw new Error(errorMessage);
     }
 
@@ -127,7 +118,6 @@ export const savePortfolioData = async (data) => {
     }
 
     const result = await response.json();
-    console.log('Save successful:', result);
     // Clear cache to force refresh on next load
     clearCache();
     // Update cache with saved data immediately

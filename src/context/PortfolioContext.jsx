@@ -13,27 +13,21 @@ export const usePortfolio = () => {
 };
 
 export const PortfolioProvider = ({ children }) => {
-  // Start with default data so logo can be shown during loading
+  // Start with default data immediately - don't wait for API
   const [portfolioData, setPortfolioData] = useState(defaultPortfolioData);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // Start as false since we have default data
 
   const loadPortfolioData = async () => {
     try {
-      setIsLoading(true);
+      // Don't set loading to true - we already have default data to show
       const data = await getPortfolioDataAsync();
-      // Only set data if we got valid data from server
+      // Only update if we got valid data from server
       if (data && Object.keys(data).length > 0) {
         setPortfolioData(data);
-      } else {
-        // If no data, use defaults but mark as loaded
-        setPortfolioData(defaultPortfolioData);
       }
     } catch (error) {
       console.error('Error loading portfolio data:', error);
-      // On error, use defaults but still show the page
-      setPortfolioData(defaultPortfolioData);
-    } finally {
-      setIsLoading(false);
+      // Keep default data on error
     }
   };
 
@@ -43,6 +37,7 @@ export const PortfolioProvider = ({ children }) => {
   };
 
   useEffect(() => {
+    // Load data in background without blocking render
     loadPortfolioData();
     
     // Listen for storage events (when data is updated in another tab/window)
