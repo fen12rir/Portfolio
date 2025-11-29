@@ -65,12 +65,20 @@ const AppContent = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-stone-900">
         <div className="text-center">
-          <a 
-            href="#home" 
-            className="text-2xl font-bold bg-gradient-to-r from-teal-500 to-emerald-400 bg-clip-text text-transparent hover:from-teal-400 hover:to-emerald-300 transition-all duration-300 inline-block"
-          >
-            {portfolioData ? getLogoName() : 'DIO'}
-          </a>
+          <div className="relative inline-block">
+            <a 
+              href="#home" 
+              className="text-2xl font-bold bg-gradient-to-r from-teal-500 via-emerald-400 to-teal-500 bg-clip-text text-transparent bg-[length:200%_100%] animate-gradient inline-block"
+            >
+              {portfolioData ? getLogoName() : 'DIO'}
+            </a>
+            <div className="absolute -inset-1 bg-gradient-to-r from-teal-500/20 via-emerald-400/20 to-teal-500/20 rounded-lg blur-lg animate-pulse"></div>
+          </div>
+          <div className="mt-8 flex justify-center space-x-2">
+            <div className="w-2 h-2 bg-teal-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+            <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+            <div className="w-2 h-2 bg-teal-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+          </div>
         </div>
       </div>
     );
