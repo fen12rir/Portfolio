@@ -3,6 +3,11 @@ import { defaultPortfolioData } from '../data/config';
 // Use environment variable or current origin for API
 const API_BASE_URL = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? `${window.location.origin}/api` : '/api');
 
+// Log API URL in development for debugging
+if (import.meta.env.DEV) {
+  console.log('API Base URL:', API_BASE_URL);
+}
+
 // Cache for portfolio data
 let cachedData = null;
 let isLoading = false;
@@ -90,15 +95,34 @@ export const savePortfolioData = async (data, isPartialUpdate = false) => {
     const payload = JSON.stringify(data);
     const payloadSize = new Blob([payload]).size;
     const payloadSizeMB = payloadSize / (1024 * 1024);
+    const apiUrl = `${API_BASE_URL}/portfolio`;
     
-    console.log(`Saving portfolio data: ${payloadSizeMB.toFixed(2)}MB, partial update: ${isPartialUpdate}`);
+    console.log(`Saving portfolio data:`, {
+      url: apiUrl,
+      size: `${payloadSizeMB.toFixed(2)}MB`,
+      partialUpdate: isPartialUpdate,
+      sections: Object.keys(data)
+    });
+    
+    // Test if API endpoint is accessible first
+    try {
+      const testResponse = await fetch(`${API_BASE_URL}/health`, { method: 'GET' });
+      if (!testResponse.ok) {
+        console.warn('⚠️ Health check failed, API might not be accessible');
+      } else {
+        console.log('✅ API endpoint is accessible');
+      }
+    } catch (testError) {
+      console.error('❌ Cannot reach API endpoint:', testError);
+      throw new Error(`Cannot connect to API at ${API_BASE_URL}. Check your VITE_API_URL environment variable.`);
+    }
     
     // Add timeout to prevent hanging
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
     
     try {
-      const response = await fetch(`${API_BASE_URL}/portfolio`, {
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -150,10 +174,23 @@ export const savePortfolioData = async (data, isPartialUpdate = false) => {
     // Provide more helpful error messages
     let errorMessage = error.message;
     if (error.message === 'Failed to fetch') {
-      errorMessage = 'Network error: Could not connect to server. Check your internet connection and try again.';
+      errorMessage = `Network error: Could not connect to ${API_BASE_URL}/portfolio. ` +
+        `Check that:\n` +
+        `1. VITE_API_URL is set correctly in Vercel\n` +
+        `2. The API endpoint is deployed and accessible\n` +
+        `3. Your internet connection is working\n` +
+        `Test the API: ${API_BASE_URL}/health`;
     } else if (error.message.includes('timeout')) {
       errorMessage = 'Request timeout: The data might be too large. Try removing or compressing images.';
+    } else if (error.message.includes('Cannot connect to API')) {
+      errorMessage = error.message;
     }
+    
+    console.error('Save error details:', {
+      url: `${API_BASE_URL}/portfolio`,
+      error: errorMessage,
+      payloadSize: `${payloadSizeMB.toFixed(2)}MB`
+    });
     
     return { success: false, error: errorMessage };
   }

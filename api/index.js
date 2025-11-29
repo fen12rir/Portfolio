@@ -60,5 +60,15 @@ export default function handler(req, res) {
     return res.status(200).end();
   }
   
+  // Normalize the URL for Express routing
+  // In Vercel, api/index.js receives requests to /api
+  // But our router expects /, so we need to adjust the URL
+  const originalUrl = req.url;
+  if (req.url === '/api' || req.url.startsWith('/api/')) {
+    // Remove /api prefix for Express routing
+    req.url = req.url.replace('/api', '') || '/';
+    req.originalUrl = req.originalUrl || originalUrl;
+  }
+  
   return app(req, res);
 }
