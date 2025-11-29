@@ -13,9 +13,15 @@ let cachedData = null;
 let isLoading = false;
 let loadPromise = null;
 
-// Initialize cache with timeout to prevent blocking
+export const isDefaultData = (data) => {
+  if (!data || !data.personal) return false;
+  return data.personal.email === "your.email@example.com";
+};
+
 const initializeCache = async (timeout = 3000) => {
-  if (cachedData) return cachedData;
+  if (cachedData) {
+    return Promise.resolve({ data: cachedData, isDefault: isDefaultData(cachedData) });
+  }
   if (loadPromise) return loadPromise;
   
   loadPromise = (async () => {
@@ -23,12 +29,10 @@ const initializeCache = async (timeout = 3000) => {
       isLoading = true;
       const apiUrl = `${API_BASE_URL}/portfolio`;
       
-      // Create a timeout promise
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('Request timeout')), timeout);
       });
       
-      // Race between fetch and timeout
       const response = await Promise.race([
         fetch(apiUrl),
         timeoutPromise
@@ -38,21 +42,21 @@ const initializeCache = async (timeout = 3000) => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      // Check if response is actually JSON before parsing
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
-        // If we got HTML or other non-JSON, use default data
-        cachedData = defaultPortfolioData;
-        return defaultPortfolioData;
+        return { data: defaultPortfolioData, isDefault: true };
       }
       
       const data = await response.json();
-      cachedData = data;
-      return data;
+      const isDefault = isDefaultData(data);
+      
+      if (!isDefault) {
+        cachedData = data;
+      }
+      
+      return { data, isDefault };
     } catch (error) {
-      // Silently fallback to default data on timeout or error
-      cachedData = defaultPortfolioData;
-      return defaultPortfolioData;
+      return { data: defaultPortfolioData, isDefault: true };
     } finally {
       isLoading = false;
       loadPromise = null;
@@ -76,18 +80,19 @@ export const getPortfolioData = () => {
   return cachedData || defaultPortfolioData;
 };
 
-// Async version for explicit loading (forces refresh if cache is cleared)
 export const getPortfolioDataAsync = async () => {
   if (cachedData && !isLoading) {
     return cachedData;
   }
-  return await initializeCache();
+  const result = await initializeCache();
+  return result.data;
 };
 
 // Refresh data from server (clears cache and fetches fresh data)
 export const refreshPortfolioData = async () => {
   clearCache();
-  return await initializeCache();
+  const result = await initializeCache();
+  return result.data;
 };
 
 export const savePortfolioData = async (data, isPartialUpdate = false) => {

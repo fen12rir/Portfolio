@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { getPortfolioDataAsync, clearCache } from '../utils/storage';
-import { defaultPortfolioData } from '../data/config';
+import { getPortfolioDataAsync, clearCache, isDefaultData } from '../utils/storage';
 
 const PortfolioContext = createContext();
 
@@ -22,33 +21,28 @@ export const PortfolioProvider = ({ children }) => {
       setIsLoading(true);
       const data = await getPortfolioDataAsync();
       
-      // Check if the data is actually default data (by checking the default email)
-      const isDefaultData = data && 
-        data.personal?.email === "your.email@example.com";
-      
-      if (isDefaultData) {
-        // Only show warning in development or if explicitly needed
-        if (import.meta.env.DEV) {
-          console.info('ℹ️ Using default portfolio data. This is normal if:');
-          console.info('   • No custom data has been saved yet (go to /admin to customize)');
-          console.info('   • MongoDB is not configured (set MONGODB_URI in Vercel)');
-          console.info('   • MongoDB connection failed (check Vercel logs)');
-        }
-      }
-      
-      // Set data from API (or default if API failed)
       if (data && Object.keys(data).length > 0) {
-        setPortfolioData(data);
+        if (isDefaultData(data)) {
+          if (import.meta.env.DEV) {
+            console.info('ℹ️ No custom portfolio data found. This is normal if:');
+            console.info('   • No custom data has been saved yet (go to /admin to customize)');
+            console.info('   • MongoDB is not configured (set MONGODB_URI in Vercel)');
+            console.info('   • MongoDB connection failed (check Vercel logs)');
+          }
+          setPortfolioData(null);
+          setIsLoading(true);
+        } else {
+          setPortfolioData(data);
+          setIsLoading(false);
+        }
       } else {
-        // Fallback to default data if API returns empty
-        setPortfolioData(defaultPortfolioData);
+        setPortfolioData(null);
+        setIsLoading(true);
       }
     } catch (error) {
       console.error('Error loading portfolio data:', error);
-      // On error, use default data
-      setPortfolioData(defaultPortfolioData);
-    } finally {
-      setIsLoading(false);
+      setPortfolioData(null);
+      setIsLoading(true);
     }
   };
 
