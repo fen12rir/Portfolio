@@ -5,34 +5,114 @@ import { connectMongo, isMongoConnected } from './mongodb.js';
 
 const router = express.Router();
 
-// Lazy load Portfolio model to avoid import-time issues
-let Portfolio = null;
-const getPortfolioModel = async () => {
-  if (!Portfolio) {
+let PortfolioModels = null;
+const getPortfolioModels = async () => {
+  if (!PortfolioModels) {
     try {
-      // Import mongoose from shared module first
       const mongoose = (await import('./mongodb.js')).default;
-      // Import Portfolio model factory
-      const PortfolioModule = await import('../server/models/Portfolio.js');
-      // Create model with shared mongoose instance
-      Portfolio = PortfolioModule.createPortfolioModel(mongoose);
+      const NormalizedModule = await import('../server/models/PortfolioNormalized.js');
+      PortfolioModels = NormalizedModule.createPortfolioNormalizedModels(mongoose);
     } catch (error) {
-      console.error('Error loading Portfolio model:', error);
-      console.error('Error stack:', error.stack);
-      // Fallback: try default export (for local dev)
-      try {
-        const PortfolioModule = await import('../server/models/Portfolio.js');
-        Portfolio = PortfolioModule.default;
-        if (!Portfolio) {
-          throw new Error('Portfolio model not available');
-        }
-      } catch (fallbackError) {
-        console.error('Fallback Portfolio model load failed:', fallbackError);
-        throw new Error('Failed to load Portfolio model: ' + error.message);
-      }
+      console.error('Error loading normalized Portfolio models:', error);
+      throw new Error('Failed to load Portfolio models: ' + error.message);
     }
   }
-  return Portfolio;
+  return PortfolioModels;
+};
+
+const migrateOldData = async (OldPortfolio) => {
+  try {
+    const oldPortfolio = await OldPortfolio.findOne();
+    if (!oldPortfolio || !oldPortfolio.data) return false;
+
+    const models = await getPortfolioModels();
+    const data = oldPortfolio.data;
+
+    const portfolio = await models.Portfolio.create({
+      personal: data.personal || {},
+      social: data.social || {},
+      isCustomized: oldPortfolio.isCustomized !== undefined ? oldPortfolio.isCustomized : (data.personal?.email !== "your.email@example.com")
+    });
+
+    const portfolioId = portfolio._id;
+
+    if (data.skills && Array.isArray(data.skills) && data.skills.length > 0) {
+      const skillsToInsert = data.skills.map((skill, index) => ({
+        portfolioId,
+        name: skill.name || skill,
+        level: skill.level || 0,
+        order: index
+      }));
+      await models.Skill.insertMany(skillsToInsert);
+    }
+
+    if (data.projects && Array.isArray(data.projects) && data.projects.length > 0) {
+      const projectsToInsert = data.projects.map((project, index) => ({
+        portfolioId,
+        title: project.title,
+        description: project.description || "",
+        images: project.images || [],
+        technologies: project.technologies || [],
+        github: project.github || "",
+        live: project.live || "",
+        order: index
+      }));
+      await models.Project.insertMany(projectsToInsert);
+    }
+
+    if (data.experience && Array.isArray(data.experience) && data.experience.length > 0) {
+      const experienceToInsert = data.experience.map((exp, index) => ({
+        portfolioId,
+        role: exp.role,
+        company: exp.company,
+        period: exp.period || "",
+        description: exp.description || "",
+        order: index
+      }));
+      await models.Experience.insertMany(experienceToInsert);
+    }
+
+    if (data.education && Array.isArray(data.education) && data.education.length > 0) {
+      const educationToInsert = data.education.map((edu, index) => ({
+        portfolioId,
+        degree: edu.degree,
+        institution: edu.institution,
+        period: edu.period || "",
+        order: index
+      }));
+      await models.Education.insertMany(educationToInsert);
+    }
+
+    if (data.certificates && Array.isArray(data.certificates) && data.certificates.length > 0) {
+      const certificatesToInsert = data.certificates.map((cert, index) => ({
+        portfolioId,
+        name: cert.name || cert.title || "",
+        issuer: cert.issuer || "",
+        date: cert.date || "",
+        url: cert.url || "",
+        image: cert.image || "",
+        order: index
+      }));
+      await models.Certificate.insertMany(certificatesToInsert);
+    }
+
+    if (data.gallery && Array.isArray(data.gallery) && data.gallery.length > 0) {
+      const galleryToInsert = data.gallery.map((item, index) => ({
+        portfolioId,
+        title: item.title || "",
+        description: item.description || "",
+        url: item.url || "",
+        order: index
+      }));
+      await models.Gallery.insertMany(galleryToInsert);
+    }
+
+    await OldPortfolio.deleteMany({});
+    return true;
+  } catch (error) {
+    console.error('Migration error:', error);
+    return false;
+  }
 };
 
 // Helper to wrap async route handlers
@@ -76,19 +156,29 @@ router.get('/', asyncHandler(async (req, res) => {
     }
 
     try {
-      const PortfolioModel = await getPortfolioModel();
-      if (!PortfolioModel || typeof PortfolioModel.getPortfolio !== 'function') {
-        console.error('Portfolio model is null or getPortfolio is not a function');
+      const models = await getPortfolioModels();
+      let portfolio = await models.Portfolio.getPortfolio();
+      
+      if (!portfolio) {
+        const mongoose = (await import('./mongodb.js')).default;
+        const OldPortfolioModule = await import('../server/models/Portfolio.js');
+        const OldPortfolio = OldPortfolioModule.createPortfolioModel(mongoose);
+        const migrated = await migrateOldData(OldPortfolio);
+        if (migrated) {
+          portfolio = await models.Portfolio.getPortfolio();
+        }
+      }
+
+      if (!portfolio) {
         return res.status(200).json({ data: defaultPortfolioData, isCustomized: false });
       }
-      const portfolio = await PortfolioModel.getPortfolio();
-      
-      if (!portfolio || !portfolio.data || typeof portfolio.data !== 'object' || Object.keys(portfolio.data).length === 0) {
+
+      const fullPortfolio = await models.Portfolio.getFullPortfolio();
+      if (!fullPortfolio) {
         return res.status(200).json({ data: defaultPortfolioData, isCustomized: false });
       }
-      
-      const isCustomized = portfolio.isCustomized !== undefined ? portfolio.isCustomized : (portfolio.data.personal?.email !== "your.email@example.com");
-      return res.status(200).json({ data: portfolio.data, isCustomized });
+
+      return res.status(200).json({ data: fullPortfolio, isCustomized: fullPortfolio.isCustomized });
     } catch (modelError) {
       console.error('Error with Portfolio model:', modelError);
       console.error('Error stack:', modelError.stack);
@@ -137,21 +227,13 @@ router.post('/', asyncHandler(async (req, res) => {
       return res.status(400).json({ error: 'Invalid data format' });
     }
 
-    const PortfolioModel = await getPortfolioModel();
-    if (!PortfolioModel) {
-      return res.status(500).json({ 
-        success: false, 
-        error: 'Portfolio model not available' 
-      });
-    }
+    const models = await getPortfolioModels();
     
     let dataToSave = data;
     
     if (isPartialUpdate) {
-      const existingPortfolio = await PortfolioModel.getPortfolio();
-      const existingData = existingPortfolio && existingPortfolio.data && Object.keys(existingPortfolio.data).length > 0
-        ? existingPortfolio.data
-        : defaultPortfolioData;
+      const existingPortfolio = await models.Portfolio.getFullPortfolio();
+      const existingData = existingPortfolio || defaultPortfolioData;
       
       dataToSave = {
         ...existingData,
@@ -167,11 +249,7 @@ router.post('/', asyncHandler(async (req, res) => {
       };
     }
     
-    const savedPortfolio = await PortfolioModel.updatePortfolio(dataToSave);
-    
-    if (!savedPortfolio || !savedPortfolio.data) {
-      throw new Error('Failed to save portfolio data');
-    }
+    await models.Portfolio.updatePortfolio(dataToSave);
     
     res.json({ success: true, message: 'Portfolio data saved successfully' });
   } catch (error) {
@@ -210,14 +288,8 @@ router.delete('/', asyncHandler(async (req, res) => {
       });
     }
 
-    const PortfolioModel = await getPortfolioModel();
-    if (!PortfolioModel) {
-      return res.status(500).json({ 
-        success: false, 
-        error: 'Portfolio model not available' 
-      });
-    }
-    await PortfolioModel.resetPortfolio(defaultPortfolioData);
+    const models = await getPortfolioModels();
+    await models.Portfolio.resetPortfolio(defaultPortfolioData);
     res.json({ success: true, message: 'Portfolio data reset successfully', data: defaultPortfolioData });
   } catch (error) {
     console.error('Error resetting portfolio data:', error.message);

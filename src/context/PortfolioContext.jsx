@@ -22,16 +22,9 @@ export const PortfolioProvider = ({ children }) => {
       const result = await getPortfolioDataWithStatus();
       
       if (result && result.data && Object.keys(result.data).length > 0) {
-        if (result.isCustomized) {
-          setPortfolioData(result.data);
-        } else {
-          if (import.meta.env.DEV) {
-            console.info('ℹ️ No custom portfolio data found. This is normal if:');
-            console.info('   • No custom data has been saved yet (go to /admin to customize)');
-            console.info('   • MongoDB is not configured (set MONGODB_URI in Vercel)');
-            console.info('   • MongoDB connection failed (check Vercel logs)');
-          }
-          setPortfolioData(null);
+        setPortfolioData(result.data);
+        if (!result.isCustomized && import.meta.env.DEV) {
+          console.info('ℹ️ Showing default portfolio data. Customize it in /admin');
         }
       } else {
         setPortfolioData(null);
