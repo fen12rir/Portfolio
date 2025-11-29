@@ -22,9 +22,14 @@ export const PortfolioProvider = ({ children }) => {
       const result = await getPortfolioDataWithStatus();
       
       if (result && result.data && Object.keys(result.data).length > 0) {
-        setPortfolioData(result.data);
-        if (!result.isCustomized && import.meta.env.DEV) {
-          console.info('ℹ️ Showing default portfolio data. Customize it in /admin');
+        const hasData = result.data.personal || result.data.skills?.length > 0 || result.data.projects?.length > 0;
+        if (hasData) {
+          setPortfolioData(result.data);
+          if (!result.isCustomized && import.meta.env.DEV) {
+            console.info('ℹ️ Portfolio data loaded. Customize it in /admin if needed');
+          }
+        } else {
+          setPortfolioData(null);
         }
       } else {
         setPortfolioData(null);

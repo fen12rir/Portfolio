@@ -182,18 +182,23 @@ export const createPortfolioNormalizedModels = (mongoose) => {
 
   Portfolio.updatePortfolio = async function(data) {
     let portfolio = await this.findOne();
-    const isCustomized = data.personal?.email !== "your.email@example.com";
+    const email = data.personal?.email;
+    const isCustomized = email && email !== "your.email@example.com" && email !== "";
     
     if (!portfolio) {
       portfolio = await this.create({
         personal: data.personal || {},
         social: data.social || {},
-        isCustomized
+        isCustomized: isCustomized || false
       });
     } else {
       if (data.personal) portfolio.personal = { ...portfolio.personal, ...data.personal };
       if (data.social) portfolio.social = { ...portfolio.social, ...data.social };
-      portfolio.isCustomized = isCustomized;
+      if (email && email !== "your.email@example.com" && email !== "") {
+        portfolio.isCustomized = true;
+      } else if (portfolio.isCustomized === undefined) {
+        portfolio.isCustomized = false;
+      }
       await portfolio.save();
     }
 

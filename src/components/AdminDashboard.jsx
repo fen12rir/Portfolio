@@ -14,11 +14,20 @@ const AdminDashboard = () => {
   const [dragOverIndex, setDragOverIndex] = useState(null);
 
   useEffect(() => {
-    // Load data asynchronously to ensure fresh data from API
     const loadData = async () => {
+      clearCache();
       const portfolioData = await getPortfolioDataAsync();
-      setData(portfolioData);
-      setOriginalData(JSON.parse(JSON.stringify(portfolioData))); // Deep clone for comparison
+      if (portfolioData && Object.keys(portfolioData).length > 0) {
+        setData(portfolioData);
+        setOriginalData(JSON.parse(JSON.stringify(portfolioData)));
+        if (import.meta.env.DEV) {
+          console.log('AdminDashboard loaded data:', portfolioData.personal?.email || 'No email');
+        }
+      } else {
+        const defaultData = getPortfolioData();
+        setData(defaultData);
+        setOriginalData(JSON.parse(JSON.stringify(defaultData)));
+      }
     };
     loadData();
   }, []);

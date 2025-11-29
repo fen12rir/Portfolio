@@ -58,9 +58,11 @@ const initializeCache = async (timeout = 3000) => {
         isCustomized = !isDefaultData(data);
       }
       
-      if (isCustomized) {
-        cachedData = data;
+      if (!data || Object.keys(data).length === 0) {
+        data = defaultPortfolioData;
       }
+      
+      cachedData = data;
       
       return { data, isCustomized };
     } catch (error) {
@@ -93,7 +95,7 @@ export const getPortfolioDataAsync = async () => {
     return cachedData;
   }
   const result = await initializeCache();
-  return result.data;
+  return result.data || defaultPortfolioData;
 };
 
 export const getPortfolioDataWithStatus = async () => {

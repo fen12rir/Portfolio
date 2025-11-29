@@ -225,7 +225,20 @@ router.get('/', asyncHandler(async (req, res) => {
         return res.status(200).json({ data: defaultPortfolioData, isCustomized: false });
       }
 
-      return res.status(200).json({ data: fullPortfolio, isCustomized: fullPortfolio.isCustomized });
+      const hasCustomData = fullPortfolio.personal?.email && 
+        fullPortfolio.personal.email !== "your.email@example.com" &&
+        fullPortfolio.personal.email !== "";
+      
+      const isCustomized = fullPortfolio.isCustomized !== undefined 
+        ? fullPortfolio.isCustomized 
+        : hasCustomData;
+      
+      if (!isCustomized && hasCustomData) {
+        portfolio.isCustomized = true;
+        await portfolio.save().catch(err => console.error('Error updating isCustomized:', err));
+      }
+      
+      return res.status(200).json({ data: fullPortfolio, isCustomized: hasCustomData || isCustomized });
     } catch (modelError) {
       console.error('Error with Portfolio model:', modelError);
       console.error('Error stack:', modelError.stack);
