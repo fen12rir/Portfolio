@@ -23,9 +23,72 @@ const AdminDashboard = () => {
     loadData();
   }, []);
 
+  // Helper function to remove base64 images that haven't changed (keep only new/changed images)
+  const optimizeImageData = (data, original) => {
+    const cleaned = JSON.parse(JSON.stringify(data)); // Deep clone
+    
+    // Handle personal avatar - only keep if it's new base64 or a URL
+    if (cleaned.personal?.avatar) {
+      if (cleaned.personal.avatar.startsWith('data:image')) {
+        // It's base64 - check if it's different from original
+        if (original?.personal?.avatar === cleaned.personal.avatar) {
+          // Same as original, remove it (server will keep existing)
+          delete cleaned.personal.avatar;
+        }
+        // Otherwise keep it (it's a new image)
+      }
+      // If it's a URL, keep it
+    }
+    
+    // Handle projects - only keep base64 if it's new
+    if (cleaned.projects && Array.isArray(cleaned.projects)) {
+      cleaned.projects = cleaned.projects.map((project, index) => {
+        if (project.image && project.image.startsWith('data:image')) {
+          // It's base64 - check if it's different from original
+          const originalProject = original?.projects?.[index];
+          if (originalProject?.image === project.image) {
+            // Same as original, remove base64 (server keeps existing)
+            return { ...project, image: originalProject.image.startsWith('data:') ? '' : originalProject.image };
+          }
+          // It's a new image, keep it but warn if too large
+          const imageSize = project.image.length;
+          if (imageSize > 500000) { // > 500KB
+            console.warn(`Large image detected in project ${index}: ${(imageSize / 1024).toFixed(2)}KB`);
+          }
+        }
+        return project;
+      });
+    }
+    
+    // Handle gallery - only keep base64 if it's new
+    if (cleaned.gallery && Array.isArray(cleaned.gallery)) {
+      cleaned.gallery = cleaned.gallery.map((item, index) => {
+        if (item.url && item.url.startsWith('data:image')) {
+          // It's base64 - check if it's different from original
+          const originalItem = original?.gallery?.[index];
+          if (originalItem?.url === item.url) {
+            // Same as original, remove base64 (server keeps existing)
+            return { ...item, url: originalItem.url.startsWith('data:') ? '' : originalItem.url };
+          }
+          // It's a new image, keep it but warn if too large
+          const imageSize = item.url.length;
+          if (imageSize > 500000) { // > 500KB
+            console.warn(`Large image detected in gallery ${index}: ${(imageSize / 1024).toFixed(2)}KB`);
+          }
+        }
+        return item;
+      });
+    }
+    
+    return cleaned;
+  };
+
   // Helper function to compute only changed fields
   const getChangedFields = (current, original) => {
-    if (!original) return current; // If no original, send all (first save)
+    if (!original) {
+      // First save - optimize images but send all data
+      return optimizeImageData(current, null);
+    }
     
     const changes = {};
     
@@ -35,8 +98,44 @@ const AdminDashboard = () => {
     sections.forEach(section => {
       if (!current[section]) return;
       
-      if (JSON.stringify(current[section]) !== JSON.stringify(original[section])) {
-        changes[section] = current[section];
+      // For sections with images, compare without base64 data (to detect changes)
+      let currentSection = current[section];
+      let originalSection = original[section];
+      
+      if (section === 'personal' || section === 'projects' || section === 'gallery') {
+        // Create copies without base64 for comparison
+        const currentCopy = JSON.parse(JSON.stringify(currentSection));
+        const originalCopy = JSON.parse(JSON.stringify(originalSection || {}));
+        
+        // Normalize base64 images for comparison (treat all base64 as same for comparison)
+        const normalizeForComparison = (obj) => {
+          if (typeof obj !== 'object' || obj === null) return obj;
+          if (Array.isArray(obj)) {
+            return obj.map(normalizeForComparison);
+          }
+          const normalized = {};
+          for (const key in obj) {
+            if (obj[key] && typeof obj[key] === 'string' && obj[key].startsWith('data:image')) {
+              normalized[key] = '[BASE64_IMAGE]'; // Placeholder for comparison
+            } else {
+              normalized[key] = normalizeForComparison(obj[key]);
+            }
+          }
+          return normalized;
+        };
+        
+        const currentNormalized = normalizeForComparison(currentCopy);
+        const originalNormalized = normalizeForComparison(originalCopy);
+        
+        if (JSON.stringify(currentNormalized) !== JSON.stringify(originalNormalized)) {
+          // Section changed - optimize images before including
+          const optimized = optimizeImageData({ [section]: currentSection }, { [section]: originalSection });
+          changes[section] = optimized[section];
+        }
+      } else {
+        if (JSON.stringify(currentSection) !== JSON.stringify(originalSection)) {
+          changes[section] = currentSection;
+        }
       }
     });
     
@@ -73,7 +172,24 @@ const AdminDashboard = () => {
         return;
       }
       
-      console.log('Saving only changed fields...', changedFields);
+      // Check payload size and warn if too large
+      const payload = JSON.stringify(changedFields);
+      const payloadSizeMB = new Blob([payload]).size / (1024 * 1024);
+      
+      if (payloadSizeMB > 4) {
+        const proceed = window.confirm(
+          `Warning: The data to save is ${payloadSizeMB.toFixed(2)}MB, which is very large. ` +
+          `This might fail due to size limits. Large images are likely the cause. ` +
+          `Consider removing or compressing images. Continue anyway?`
+        );
+        if (!proceed) return;
+      }
+      
+      console.log('Saving only changed fields...', {
+        sections: Object.keys(changedFields),
+        size: `${payloadSizeMB.toFixed(2)}MB`,
+        changedFields
+      });
       const result = await savePortfolioData(changedFields, true); // Pass true to indicate partial update
       console.log('Save result:', result);
       
