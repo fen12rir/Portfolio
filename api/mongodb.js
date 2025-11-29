@@ -1,79 +1,97 @@
-// Shared MongoDB connection for serverless functions
 import mongoose from 'mongoose';
 
-// Connection state
+let cachedConnection = null;
 let isConnecting = false;
 let connectionPromise = null;
+const CONNECTION_TIMEOUT = 6000;
 
-// Initialize MongoDB connection
-export const connectMongo = async (retries = 3) => {
+const getConnection = () => {
   if (mongoose.connection.readyState === 1) {
     return mongoose.connection;
   }
+  return null;
+};
+
+export const connectMongo = async () => {
+  const existing = getConnection();
+  if (existing) {
+    return existing;
+  }
+
+  if (cachedConnection && cachedConnection.readyState === 1) {
+    return cachedConnection;
+  }
 
   if (isConnecting && connectionPromise) {
-    const result = await connectionPromise;
-    return result;
+    try {
+      return await Promise.race([
+        connectionPromise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), CONNECTION_TIMEOUT))
+      ]);
+    } catch (e) {
+      isConnecting = false;
+      connectionPromise = null;
+    }
+  }
+
+  if (!process.env.MONGODB_URI) {
+    return null;
   }
 
   isConnecting = true;
   connectionPromise = (async () => {
-    let lastError = null;
-    
-    for (let attempt = 1; attempt <= retries; attempt++) {
-      try {
-        let MONGODB_URI = process.env.MONGODB_URI;
-        
-        if (!MONGODB_URI) {
-          console.error('❌ MONGODB_URI environment variable is not set!');
-          console.error('💡 Please set MONGODB_URI in Vercel Dashboard → Settings → Environment Variables');
-          isConnecting = false;
-          return null;
+    try {
+      let uri = process.env.MONGODB_URI;
+      
+      if (uri.includes('mongodb+srv://')) {
+        if (!uri.includes('retryWrites')) {
+          uri += (uri.includes('?') ? '&' : '?') + 'retryWrites=true&w=majority';
         }
-
-        const mongooseOptions = {
-          serverSelectionTimeoutMS: 5000,
-          socketTimeoutMS: 45000,
-          maxPoolSize: 10,
-          minPoolSize: 2,
-        };
-
-        if (MONGODB_URI.includes('mongodb+srv://') && !MONGODB_URI.includes('retryWrites')) {
-          const separator = MONGODB_URI.includes('?') ? '&' : '?';
-          MONGODB_URI = `${MONGODB_URI}${separator}retryWrites=true&w=majority`;
-        }
-
-        await mongoose.connect(MONGODB_URI, mongooseOptions);
-        console.log(`✅ Connected to MongoDB Atlas (attempt ${attempt}/${retries})`);
-        isConnecting = false;
-        return mongoose.connection;
-      } catch (error) {
-        lastError = error;
-        console.error(`❌ MongoDB connection error (attempt ${attempt}/${retries}):`, error.message);
-        
-        if (attempt < retries) {
-          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-          console.log(`⏳ Retrying in ${delay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
+        if (!uri.includes('maxPoolSize')) {
+          uri += (uri.includes('?') ? '&' : '?') + 'maxPoolSize=1&minPoolSize=1';
         }
       }
+
+      const options = {
+        serverSelectionTimeoutMS: 5000,
+        socketTimeoutMS: 20000,
+        connectTimeoutMS: 5000,
+        maxPoolSize: 1,
+        minPoolSize: 1,
+        bufferCommands: false,
+        bufferMaxEntries: 0,
+      };
+
+      await Promise.race([
+        mongoose.connect(uri, options),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), CONNECTION_TIMEOUT))
+      ]);
+
+      cachedConnection = mongoose.connection;
+      isConnecting = false;
+      
+      mongoose.connection.on('error', () => {
+        cachedConnection = null;
+      });
+      
+      mongoose.connection.on('disconnected', () => {
+        cachedConnection = null;
+      });
+
+      return cachedConnection;
+    } catch (error) {
+      isConnecting = false;
+      connectionPromise = null;
+      cachedConnection = null;
+      throw error;
     }
-    
-    console.error('❌ Failed to connect to MongoDB after', retries, 'attempts');
-    console.error('Last error:', lastError?.message);
-    isConnecting = false;
-    connectionPromise = null;
-    return null;
   })();
 
   return connectionPromise;
 };
 
-// Check if MongoDB is connected
 export const isMongoConnected = () => {
   return mongoose.connection.readyState === 1;
 };
 
-// Export mongoose instance
 export default mongoose;
-

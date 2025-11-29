@@ -107,7 +107,7 @@ const notifyOtherTabs = () => {
   }
 };
 
-const initializeCache = async (timeout = 5000, forceRefresh = false) => {
+const initializeCache = async (timeout = 15000, forceRefresh = false) => {
   if (!forceRefresh) {
     const storedData = loadFromStorage();
     if (storedData && !isDefaultData(storedData)) {
@@ -132,7 +132,10 @@ const initializeCache = async (timeout = 5000, forceRefresh = false) => {
       const apiUrl = `${API_BASE_URL}/portfolio`;
       
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+        console.warn('⚠️ API request timeout after', timeout, 'ms');
+      }, timeout);
       
       const response = await fetch(apiUrl, {
         signal: controller.signal,
@@ -203,14 +206,18 @@ const initializeCache = async (timeout = 5000, forceRefresh = false) => {
       
       return { data, isCustomized };
     } catch (error) {
+      clearTimeout(timeoutId);
+      
       if (error.name === 'AbortError') {
-        console.warn('Request timeout, using cached or default data');
+        console.error('❌ Request timeout after', timeout, 'ms - API is too slow or MongoDB connection failed');
+        console.error('💡 Check Vercel logs to see if MongoDB is connecting properly');
       } else {
-        console.warn('Error fetching portfolio data:', error.message);
+        console.error('❌ Error fetching portfolio data:', error.message);
       }
       
       const storedData = loadFromStorage();
       if (storedData && !isDefaultData(storedData)) {
+        console.log('✅ Using cached data from localStorage');
         cachedData = storedData;
         cacheTimestamp = Date.now();
         return { data: storedData, isCustomized: true };

@@ -17,6 +17,9 @@
     },
     "api/health.js": {
       "maxDuration": 10
+    },
+    "api/debug.js": {
+      "maxDuration": 20
     }
   }
 }

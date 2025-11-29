@@ -170,8 +170,11 @@ app.use('/', router);
 
 // Get portfolio data
 router.get('/', asyncHandler(async (req, res) => {
+  const startTime = Date.now();
+  
   try {
     if (!process.env.MONGODB_URI) {
+      console.log('⚠️ MONGODB_URI not set, returning default data');
       return res.status(200).json({ 
         data: defaultPortfolioData, 
         isCustomized: false,
@@ -180,10 +183,14 @@ router.get('/', asyncHandler(async (req, res) => {
       });
     }
     
+    const connectionStart = Date.now();
     try {
-      await connectMongo(3);
+      await connectMongo(2);
+      const connectionTime = Date.now() - connectionStart;
+      console.log(`⏱️ MongoDB connection took ${connectionTime}ms`);
     } catch (mongoError) {
-      console.error('MongoDB connection failed:', mongoError.message);
+      const connectionTime = Date.now() - connectionStart;
+      console.error(`❌ MongoDB connection failed after ${connectionTime}ms:`, mongoError.message);
       return res.status(200).json({ 
         data: defaultPortfolioData, 
         isCustomized: false,
@@ -193,6 +200,7 @@ router.get('/', asyncHandler(async (req, res) => {
     }
     
     if (!isMongoConnected()) {
+      console.error('❌ MongoDB not connected after connection attempt');
       return res.status(200).json({ 
         data: defaultPortfolioData, 
         isCustomized: false,
@@ -202,46 +210,34 @@ router.get('/', asyncHandler(async (req, res) => {
     }
 
     try {
+      const queryStart = Date.now();
       const models = await getPortfolioModels();
-      let portfolio = await models.Portfolio.getPortfolio();
+      let portfolio = await models.Portfolio.findOne().lean().maxTimeMS(3000);
       
       if (!portfolio) {
-        console.log('⚠️ No portfolio document found in normalized collection, checking old format...');
         try {
           const mongoose = (await import('./mongodb.js')).default;
-          const db = mongoose.connection.db;
-          const oldCollection = db.collection('portfolios');
-          const oldCount = await oldCollection.countDocuments({}, { maxTimeMS: 5000 }).catch(() => 0);
-          
-          if (oldCount > 0) {
-            console.log(`Found ${oldCount} document(s) in old portfolios collection, migrating...`);
-            const OldPortfolioModule = await import('../server/models/Portfolio.js');
-            const OldPortfolio = OldPortfolioModule.createPortfolioModel(mongoose);
-            const migrated = await migrateOldData(OldPortfolio);
-            if (migrated) {
-              portfolio = await models.Portfolio.getPortfolio();
-              console.log('✅ Migration successful');
-              try {
-                await oldCollection.drop({ maxTimeMS: 10000 });
-                console.log('Successfully dropped old portfolios collection');
-              } catch (dropError) {
-                console.log('Migration successful but could not drop old collection:', dropError.message);
+          if (mongoose.connection.readyState === 1) {
+            const db = mongoose.connection.db;
+            const oldCount = await db.collection('portfolios').countDocuments({}, { maxTimeMS: 2000 }).catch(() => 0);
+            
+            if (oldCount > 0) {
+              const OldPortfolioModule = await import('../server/models/Portfolio.js');
+              const OldPortfolio = OldPortfolioModule.createPortfolioModel(mongoose);
+              const migrated = await migrateOldData(OldPortfolio);
+              if (migrated) {
+                portfolio = await models.Portfolio.findOne().lean().maxTimeMS(3000);
               }
-            } else {
-              console.log('⚠️ Migration failed or no data to migrate');
             }
-          } else {
-            console.log('⚠️ No data found in old collection either');
           }
         } catch (migrationError) {
-          console.error('Migration attempt failed:', migrationError.message);
+          console.error('Migration error:', migrationError.message);
         }
-      } else {
-        console.log('✅ Found portfolio document in database');
       }
 
       if (!portfolio) {
-        console.log('⚠️ No portfolio found after all checks, returning default data');
+        const queryTime = Date.now() - queryStart;
+        console.log(`⚠️ No portfolio found (${queryTime}ms)`);
         return res.status(200).json({ 
           data: defaultPortfolioData, 
           isCustomized: false,
@@ -250,9 +246,12 @@ router.get('/', asyncHandler(async (req, res) => {
         });
       }
 
+      const fullStart = Date.now();
       const fullPortfolio = await models.Portfolio.getFullPortfolio();
+      const fullTime = Date.now() - fullStart;
+      
       if (!fullPortfolio) {
-        console.log('⚠️ getFullPortfolio returned null, portfolio exists but has no data');
+        console.log(`⚠️ getFullPortfolio returned null (${fullTime}ms)`);
         return res.status(200).json({ 
           data: defaultPortfolioData, 
           isCustomized: false,
@@ -290,13 +289,12 @@ router.get('/', asyncHandler(async (req, res) => {
         });
       }
 
-      console.log('✅ Returning portfolio data from database:', {
-        hasCustomData,
-        isCustomized,
-        hasPersonal: !!fullPortfolio.personal?.name,
-        skillsCount: fullPortfolio.skills?.length || 0,
-        projectsCount: fullPortfolio.projects?.length || 0
-      });
+      const totalTime = Date.now() - startTime;
+      if (totalTime > 2000) {
+        console.warn(`⚠️ Slow response: ${totalTime}ms`);
+      } else {
+        console.log(`✅ Response time: ${totalTime}ms`);
+      }
       
       return res.status(200).json({ 
         data: fullPortfolio, 
@@ -305,7 +303,8 @@ router.get('/', asyncHandler(async (req, res) => {
         timestamp: new Date().toISOString()
       });
     } catch (modelError) {
-      console.error('Error with Portfolio model:', modelError);
+      const totalTime = Date.now() - startTime;
+      console.error(`❌ Error with Portfolio model (after ${totalTime}ms):`, modelError.message);
       console.error('Error stack:', modelError.stack);
       return res.status(200).json({ 
         data: defaultPortfolioData, 
@@ -315,7 +314,8 @@ router.get('/', asyncHandler(async (req, res) => {
       });
     }
   } catch (error) {
-    console.error('Unexpected error fetching portfolio data:', error);
+    const totalTime = Date.now() - startTime;
+    console.error(`❌ Unexpected error (after ${totalTime}ms):`, error.message);
     console.error('Error stack:', error.stack);
     return res.status(200).json({ 
       data: defaultPortfolioData, 

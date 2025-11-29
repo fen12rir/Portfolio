@@ -52,6 +52,7 @@ export const createPortfolioNormalizedModels = (mongoose) => {
   });
 
   projectSchema.index({ portfolioId: 1, order: 1 });
+  projectSchema.index({ portfolioId: 1 });
 
   const experienceSchema = new mongoose.Schema({
     portfolioId: { type: mongoose.Schema.Types.ObjectId, ref: 'Portfolio', required: true },
@@ -65,6 +66,7 @@ export const createPortfolioNormalizedModels = (mongoose) => {
   });
 
   experienceSchema.index({ portfolioId: 1, order: 1 });
+  experienceSchema.index({ portfolioId: 1 });
 
   const educationSchema = new mongoose.Schema({
     portfolioId: { type: mongoose.Schema.Types.ObjectId, ref: 'Portfolio', required: true },
@@ -77,6 +79,7 @@ export const createPortfolioNormalizedModels = (mongoose) => {
   });
 
   educationSchema.index({ portfolioId: 1, order: 1 });
+  educationSchema.index({ portfolioId: 1 });
 
   const certificateSchema = new mongoose.Schema({
     portfolioId: { type: mongoose.Schema.Types.ObjectId, ref: 'Portfolio', required: true },
@@ -91,6 +94,7 @@ export const createPortfolioNormalizedModels = (mongoose) => {
   });
 
   certificateSchema.index({ portfolioId: 1, order: 1 });
+  certificateSchema.index({ portfolioId: 1 });
 
   const gallerySchema = new mongoose.Schema({
     portfolioId: { type: mongoose.Schema.Types.ObjectId, ref: 'Portfolio', required: true },
@@ -103,6 +107,7 @@ export const createPortfolioNormalizedModels = (mongoose) => {
   });
 
   gallerySchema.index({ portfolioId: 1, order: 1 });
+  gallerySchema.index({ portfolioId: 1 });
 
   const Portfolio = mongoose.models.Portfolio || mongoose.model('Portfolio', portfolioSchema);
   const Skill = mongoose.models.Skill || mongoose.model('Skill', skillSchema);
@@ -118,19 +123,23 @@ export const createPortfolioNormalizedModels = (mongoose) => {
 
   Portfolio.getFullPortfolio = async function() {
     try {
-      const portfolio = await this.findOne();
+      const portfolio = await this.findOne().lean().maxTimeMS(3000);
       if (!portfolio) return null;
 
       const portfolioId = portfolio._id;
       
-      const [skills, projects, experience, education, certificates, gallery] = await Promise.all([
-        Skill.find({ portfolioId }).sort({ order: 1 }).lean().catch(() => []),
-        Project.find({ portfolioId }).sort({ order: 1 }).lean().catch(() => []),
-        Experience.find({ portfolioId }).sort({ order: 1 }).lean().catch(() => []),
-        Education.find({ portfolioId }).sort({ order: 1 }).lean().catch(() => []),
-        Certificate.find({ portfolioId }).sort({ order: 1 }).lean().catch(() => []),
-        Gallery.find({ portfolioId }).sort({ order: 1 }).lean().catch(() => [])
-      ]);
+      const queries = [
+        Skill.find({ portfolioId }).select('name level order').sort({ order: 1 }).lean().maxTimeMS(2000),
+        Project.find({ portfolioId }).select('title description images technologies github live order').sort({ order: 1 }).lean().maxTimeMS(2000),
+        Experience.find({ portfolioId }).select('role company period description order').sort({ order: 1 }).lean().maxTimeMS(2000),
+        Education.find({ portfolioId }).select('degree institution period order').sort({ order: 1 }).lean().maxTimeMS(2000),
+        Certificate.find({ portfolioId }).select('name issuer date url image order').sort({ order: 1 }).lean().maxTimeMS(2000),
+        Gallery.find({ portfolioId }).select('title description url order').sort({ order: 1 }).lean().maxTimeMS(2000)
+      ];
+      
+      const [skills, projects, experience, education, certificates, gallery] = await Promise.all(
+        queries.map(q => q.catch(() => []))
+      );
 
     return {
       personal: portfolio.personal,
