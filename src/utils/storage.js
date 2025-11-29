@@ -85,12 +85,13 @@ export const refreshPortfolioData = async () => {
   return await initializeCache();
 };
 
-export const savePortfolioData = async (data) => {
+export const savePortfolioData = async (data, isPartialUpdate = false) => {
   try {
     const response = await fetch(`${API_BASE_URL}/portfolio`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-Partial-Update': isPartialUpdate ? 'true' : 'false',
       },
       body: JSON.stringify(data),
     });
@@ -118,10 +119,9 @@ export const savePortfolioData = async (data) => {
     }
 
     const result = await response.json();
-    // Clear cache to force refresh on next load
+    // Clear cache to force refresh on next load (especially important for partial updates)
     clearCache();
-    // Update cache with saved data immediately
-    cachedData = data;
+    // Don't update cache with partial data - let it reload from server
     return { success: true, ...result };
   } catch (error) {
     console.error('Error saving portfolio data:', error);

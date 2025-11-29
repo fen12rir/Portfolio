@@ -132,6 +132,7 @@ router.post('/', asyncHandler(async (req, res) => {
     }
 
     const data = req.body;
+    const isPartialUpdate = req.headers['x-partial-update'] === 'true';
     
     if (!data || typeof data !== 'object') {
       return res.status(400).json({ error: 'Invalid data format' });
@@ -144,7 +145,35 @@ router.post('/', asyncHandler(async (req, res) => {
         error: 'Portfolio model not available' 
       });
     }
-    await PortfolioModel.updatePortfolio(data);
+    
+    // If partial update, merge with existing data
+    if (isPartialUpdate) {
+      const existingPortfolio = await PortfolioModel.getPortfolio();
+      const existingData = existingPortfolio && existingPortfolio.data && Object.keys(existingPortfolio.data).length > 0
+        ? existingPortfolio.data
+        : defaultPortfolioData;
+      
+      // Deep merge the partial update with existing data
+      const mergedData = {
+        ...existingData,
+        ...data,
+        // Deep merge nested objects
+        personal: { ...existingData.personal, ...(data.personal || {}) },
+        social: { ...existingData.social, ...(data.social || {}) },
+        skills: data.skills !== undefined ? data.skills : existingData.skills,
+        projects: data.projects !== undefined ? data.projects : existingData.projects,
+        experience: data.experience !== undefined ? data.experience : existingData.experience,
+        education: data.education !== undefined ? data.education : existingData.education,
+        certificates: data.certificates !== undefined ? data.certificates : existingData.certificates,
+        gallery: data.gallery !== undefined ? data.gallery : existingData.gallery,
+      };
+      
+      await PortfolioModel.updatePortfolio(mergedData);
+    } else {
+      // Full update
+      await PortfolioModel.updatePortfolio(data);
+    }
+    
     res.json({ success: true, message: 'Portfolio data saved successfully' });
   } catch (error) {
     console.error('Error saving portfolio data:', error.message);

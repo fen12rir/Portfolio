@@ -5,6 +5,7 @@ import { getPortfolioData, getPortfolioDataAsync, savePortfolioData, resetPortfo
 const AdminDashboard = () => {
   const { logout, setPassword } = useAuth();
   const [data, setData] = useState(getPortfolioData());
+  const [originalData, setOriginalData] = useState(null); // Track original data for comparison
   const [activeTab, setActiveTab] = useState('personal');
   const [saved, setSaved] = useState(false);
   const [newPassword, setNewPassword] = useState('');
@@ -17,12 +18,39 @@ const AdminDashboard = () => {
     const loadData = async () => {
       const portfolioData = await getPortfolioDataAsync();
       setData(portfolioData);
+      setOriginalData(JSON.parse(JSON.stringify(portfolioData))); // Deep clone for comparison
     };
     loadData();
   }, []);
 
+  // Helper function to compute only changed fields
+  const getChangedFields = (current, original) => {
+    if (!original) return current; // If no original, send all (first save)
+    
+    const changes = {};
+    
+    // Compare top-level sections
+    const sections = ['personal', 'social', 'skills', 'projects', 'experience', 'education', 'certificates', 'gallery'];
+    
+    sections.forEach(section => {
+      if (!current[section]) return;
+      
+      if (JSON.stringify(current[section]) !== JSON.stringify(original[section])) {
+        changes[section] = current[section];
+      }
+    });
+    
+    return Object.keys(changes).length > 0 ? changes : null;
+  };
+
   const handleSave = async () => {
     try {
+      if (!originalData) {
+        // First load, wait a bit for originalData to be set
+        setTimeout(() => handleSave(), 100);
+        return;
+      }
+
       // Clean up social links to only include allowed ones
       const allowedSocialKeys = ['github', 'linkedin', 'email'];
       const cleanedSocial = {};
@@ -37,22 +65,31 @@ const AdminDashboard = () => {
         social: cleanedSocial
       };
       
-      console.log('Saving portfolio data...', cleanedData);
-      const result = await savePortfolioData(cleanedData);
+      // Get only changed fields
+      const changedFields = getChangedFields(cleanedData, originalData);
+      
+      if (!changedFields) {
+        alert('No changes detected.');
+        return;
+      }
+      
+      console.log('Saving only changed fields...', changedFields);
+      const result = await savePortfolioData(changedFields, true); // Pass true to indicate partial update
       console.log('Save result:', result);
       
       if (result && result.success !== false) {
-      setSaved(true);
+        setSaved(true);
         // Clear cache and reload fresh data from server
         clearCache();
         const freshData = await getPortfolioDataAsync();
         setData(freshData);
+        setOriginalData(JSON.parse(JSON.stringify(freshData))); // Update original data
         console.log('Data refreshed:', freshData);
         // Trigger refresh event for PortfolioContext
         window.dispatchEvent(new Event('portfolioDataUpdated'));
-      setTimeout(() => {
-        setSaved(false);
-      }, 1500);
+        setTimeout(() => {
+          setSaved(false);
+        }, 1500);
       } else {
         const errorMsg = result?.error || result?.message || 'Failed to save data. Please try again.';
         console.error('Save failed:', errorMsg, result);
