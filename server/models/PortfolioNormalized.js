@@ -96,7 +96,7 @@ export const createPortfolioNormalizedModels = (mongoose) => {
     portfolioId: { type: mongoose.Schema.Types.ObjectId, ref: 'Portfolio', required: true },
     title: { type: String, required: true },
     description: { type: String, default: "" },
-    url: { type: String, required: true },
+    url: { type: String, default: "" },
     order: { type: Number, default: 0 }
   }, {
     timestamps: true
