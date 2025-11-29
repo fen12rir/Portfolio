@@ -284,14 +284,18 @@ export const createPortfolioNormalizedModels = (mongoose) => {
     if (data.gallery !== undefined) {
       await Gallery.deleteMany({ portfolioId });
       if (Array.isArray(data.gallery) && data.gallery.length > 0) {
-        const galleryToInsert = data.gallery.map((item, index) => ({
-          portfolioId,
-          title: item.title || "",
-          description: item.description || "",
-          url: item.url || "",
-          order: index
-        }));
-        await Gallery.insertMany(galleryToInsert);
+        const galleryToInsert = data.gallery
+          .filter(item => item && item.title && item.title.trim() !== "")
+          .map((item, index) => ({
+            portfolioId,
+            title: item.title || "",
+            description: item.description || "",
+            url: item.url || "",
+            order: index
+          }));
+        if (galleryToInsert.length > 0) {
+          await Gallery.insertMany(galleryToInsert);
+        }
       }
     }
 

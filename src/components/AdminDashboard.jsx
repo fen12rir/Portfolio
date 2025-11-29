@@ -136,8 +136,13 @@ const AdminDashboard = () => {
         const currentNormalized = normalizeForComparison(currentCopy);
         const originalNormalized = normalizeForComparison(originalCopy);
         
-        if (JSON.stringify(currentNormalized) !== JSON.stringify(originalNormalized)) {
-          // Section changed - optimize images before including
+        const currentArray = Array.isArray(currentNormalized) ? currentNormalized : [];
+        const originalArray = Array.isArray(originalNormalized) ? originalNormalized : [];
+        
+        const arraysEqual = currentArray.length === originalArray.length && 
+          currentArray.every((item, idx) => JSON.stringify(item) === JSON.stringify(originalArray[idx]));
+        
+        if (!arraysEqual) {
           const optimized = optimizeImageData({ [section]: currentSection }, { [section]: originalSection });
           changes[section] = optimized[section];
         }
@@ -410,12 +415,14 @@ const AdminDashboard = () => {
 
   const updateGallery = (index, field, value) => {
     const gallery = [...(data.gallery || [])];
-    gallery[index] = { ...gallery[index], [field]: value };
-    setData({ ...data, gallery });
+    if (gallery[index]) {
+      gallery[index] = { ...gallery[index], [field]: value };
+      setData({ ...data, gallery });
+    }
   };
 
   const addGalleryItem = () => {
-    const newId = Math.max(...(data.gallery || []).map(g => g.id || 0), 0) + 1;
+    const newId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     setData({
       ...data,
       gallery: [
@@ -426,7 +433,8 @@ const AdminDashboard = () => {
   };
 
   const removeGalleryItem = (index) => {
-    const gallery = (data.gallery || []).filter((_, i) => i !== index);
+    const gallery = [...(data.gallery || [])];
+    gallery.splice(index, 1);
     setData({ ...data, gallery });
   };
 
