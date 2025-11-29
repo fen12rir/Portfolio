@@ -14,14 +14,22 @@ export const connectMongo = async () => {
 
   // If currently connecting, wait for that connection
   if (isConnecting && connectionPromise) {
-    return connectionPromise;
+    const result = await connectionPromise;
+    return result;
   }
 
   // Start new connection
   isConnecting = true;
   connectionPromise = (async () => {
     try {
-      let MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/portfolio';
+      let MONGODB_URI = process.env.MONGODB_URI;
+      
+      if (!MONGODB_URI) {
+        console.error('❌ MONGODB_URI environment variable is not set!');
+        console.error('💡 Please set MONGODB_URI in Vercel Dashboard → Settings → Environment Variables');
+        // Don't throw - let the calling code handle it gracefully
+        return null;
+      }
 
       const mongooseOptions = {
         useNewUrlParser: true,
@@ -43,7 +51,8 @@ export const connectMongo = async () => {
       console.error('❌ MongoDB connection error:', error.message);
       isConnecting = false;
       connectionPromise = null;
-      throw error;
+      // Don't throw - return null so calling code can handle gracefully
+      return null;
     }
   })();
 
