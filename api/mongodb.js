@@ -59,7 +59,6 @@ export const connectMongo = async () => {
         maxPoolSize: 1,
         minPoolSize: 1,
         bufferCommands: false,
-        bufferMaxEntries: 0,
       };
 
       await Promise.race([
