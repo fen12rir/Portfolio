@@ -62,8 +62,7 @@ const AppContent = () => {
     }
   }, [currentPath, isAuthenticated, isLoading]);
 
-  // Show loading screen while auth or portfolio data is loading
-  if (isLoading || !portfolioData) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-stone-900">
         <div className="text-center">
@@ -73,6 +72,32 @@ const AppContent = () => {
           >
             {portfolioData ? getLogoName() : 'DIO'}
           </a>
+        </div>
+      </div>
+    );
+  }
+
+  if (!portfolioData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-900 px-4">
+        <div className="text-center max-w-2xl">
+          <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-teal-500 to-emerald-400 bg-clip-text text-transparent mb-4">
+            Portfolio Setup Required
+          </h1>
+          <p className="text-stone-400 mb-6 text-lg">
+            No custom portfolio data has been configured yet.
+          </p>
+          <p className="text-stone-500 mb-8">
+            Go to <a href="#/admin" className="text-teal-400 hover:text-teal-300 underline">Admin Dashboard</a> to customize your portfolio.
+          </p>
+          <div className="text-sm text-stone-600 space-y-1">
+            <p>This is normal if:</p>
+            <ul className="list-disc list-inside space-y-1 text-left max-w-md mx-auto">
+              <li>No custom data has been saved yet</li>
+              <li>MongoDB is not configured (set MONGODB_URI in Vercel)</li>
+              <li>MongoDB connection failed</li>
+            </ul>
+          </div>
         </div>
       </div>
     );

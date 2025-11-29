@@ -7,6 +7,10 @@ export const createPortfolioModel = (mongoose) => {
       type: mongoose.Schema.Types.Mixed,
       required: true,
       default: {}
+    },
+    isCustomized: {
+      type: Boolean,
+      default: false
     }
   }, {
     timestamps: true
@@ -16,28 +20,29 @@ export const createPortfolioModel = (mongoose) => {
     return await this.findOne();
   };
 
-  // Static method to update portfolio data
   portfolioSchema.statics.updatePortfolio = async function(data) {
     let portfolio = await this.findOne();
+    const isCustomized = data.personal?.email !== "your.email@example.com";
     
     if (!portfolio) {
-      portfolio = await this.create({ data });
+      portfolio = await this.create({ data, isCustomized });
     } else {
       portfolio.data = data;
+      portfolio.isCustomized = isCustomized;
       await portfolio.save();
     }
     
     return portfolio;
   };
 
-  // Static method to reset portfolio data
   portfolioSchema.statics.resetPortfolio = async function(defaultData) {
     let portfolio = await this.findOne();
     
     if (!portfolio) {
-      portfolio = await this.create({ data: defaultData });
+      portfolio = await this.create({ data: defaultData, isCustomized: false });
     } else {
       portfolio.data = defaultData;
+      portfolio.isCustomized = false;
       await portfolio.save();
     }
     

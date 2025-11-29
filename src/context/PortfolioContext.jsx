@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { getPortfolioDataAsync, clearCache, isDefaultData } from '../utils/storage';
+import { getPortfolioDataWithStatus, clearCache } from '../utils/storage';
 
 const PortfolioContext = createContext();
 
@@ -19,10 +19,12 @@ export const PortfolioProvider = ({ children }) => {
   const loadPortfolioData = async () => {
     try {
       setIsLoading(true);
-      const data = await getPortfolioDataAsync();
+      const result = await getPortfolioDataWithStatus();
       
-      if (data && Object.keys(data).length > 0) {
-        if (isDefaultData(data)) {
+      if (result && result.data && Object.keys(result.data).length > 0) {
+        if (result.isCustomized) {
+          setPortfolioData(result.data);
+        } else {
           if (import.meta.env.DEV) {
             console.info('ℹ️ No custom portfolio data found. This is normal if:');
             console.info('   • No custom data has been saved yet (go to /admin to customize)');
@@ -30,19 +32,15 @@ export const PortfolioProvider = ({ children }) => {
             console.info('   • MongoDB connection failed (check Vercel logs)');
           }
           setPortfolioData(null);
-          setIsLoading(true);
-        } else {
-          setPortfolioData(data);
-          setIsLoading(false);
         }
       } else {
         setPortfolioData(null);
-        setIsLoading(true);
       }
     } catch (error) {
       console.error('Error loading portfolio data:', error);
       setPortfolioData(null);
-      setIsLoading(true);
+    } finally {
+      setIsLoading(false);
     }
   };
 

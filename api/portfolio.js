@@ -61,42 +61,43 @@ app.use('/', router);
 router.get('/', asyncHandler(async (req, res) => {
   try {
     if (!process.env.MONGODB_URI) {
-      return res.status(200).json(defaultPortfolioData);
+      return res.status(200).json({ data: defaultPortfolioData, isCustomized: false });
     }
     
     try {
       await connectMongo();
     } catch (mongoError) {
       console.error('MongoDB connection failed:', mongoError.message);
-      return res.status(200).json(defaultPortfolioData);
+      return res.status(200).json({ data: defaultPortfolioData, isCustomized: false });
     }
     
     if (!isMongoConnected()) {
-      return res.status(200).json(defaultPortfolioData);
+      return res.status(200).json({ data: defaultPortfolioData, isCustomized: false });
     }
 
     try {
       const PortfolioModel = await getPortfolioModel();
       if (!PortfolioModel || typeof PortfolioModel.getPortfolio !== 'function') {
         console.error('Portfolio model is null or getPortfolio is not a function');
-        return res.status(200).json(defaultPortfolioData);
+        return res.status(200).json({ data: defaultPortfolioData, isCustomized: false });
       }
       const portfolio = await PortfolioModel.getPortfolio();
       
       if (!portfolio || !portfolio.data || typeof portfolio.data !== 'object' || Object.keys(portfolio.data).length === 0) {
-        return res.status(200).json(defaultPortfolioData);
+        return res.status(200).json({ data: defaultPortfolioData, isCustomized: false });
       }
       
-      return res.status(200).json(portfolio.data);
+      const isCustomized = portfolio.isCustomized !== undefined ? portfolio.isCustomized : (portfolio.data.personal?.email !== "your.email@example.com");
+      return res.status(200).json({ data: portfolio.data, isCustomized });
     } catch (modelError) {
       console.error('Error with Portfolio model:', modelError);
       console.error('Error stack:', modelError.stack);
-      return res.status(200).json(defaultPortfolioData);
+      return res.status(200).json({ data: defaultPortfolioData, isCustomized: false });
     }
   } catch (error) {
     console.error('Unexpected error fetching portfolio data:', error);
     console.error('Error stack:', error.stack);
-    return res.status(200).json(defaultPortfolioData);
+    return res.status(200).json({ data: defaultPortfolioData, isCustomized: false });
   }
 }));
 

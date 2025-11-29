@@ -20,7 +20,7 @@ export const isDefaultData = (data) => {
 
 const initializeCache = async (timeout = 3000) => {
   if (cachedData) {
-    return Promise.resolve({ data: cachedData, isDefault: isDefaultData(cachedData) });
+    return Promise.resolve({ data: cachedData, isCustomized: !isDefaultData(cachedData) });
   }
   if (loadPromise) return loadPromise;
   
@@ -44,19 +44,27 @@ const initializeCache = async (timeout = 3000) => {
       
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
-        return { data: defaultPortfolioData, isDefault: true };
+        return { data: defaultPortfolioData, isCustomized: false };
       }
       
-      const data = await response.json();
-      const isDefault = isDefaultData(data);
+      const result = await response.json();
       
-      if (!isDefault) {
+      let data, isCustomized;
+      if (result.data !== undefined && result.isCustomized !== undefined) {
+        data = result.data;
+        isCustomized = result.isCustomized;
+      } else {
+        data = result;
+        isCustomized = !isDefaultData(data);
+      }
+      
+      if (isCustomized) {
         cachedData = data;
       }
       
-      return { data, isDefault };
+      return { data, isCustomized };
     } catch (error) {
-      return { data: defaultPortfolioData, isDefault: true };
+      return { data: defaultPortfolioData, isCustomized: false };
     } finally {
       isLoading = false;
       loadPromise = null;
@@ -86,6 +94,13 @@ export const getPortfolioDataAsync = async () => {
   }
   const result = await initializeCache();
   return result.data;
+};
+
+export const getPortfolioDataWithStatus = async () => {
+  if (cachedData && !isLoading) {
+    return { data: cachedData, isCustomized: !isDefaultData(cachedData) };
+  }
+  return await initializeCache();
 };
 
 // Refresh data from server (clears cache and fetches fresh data)
