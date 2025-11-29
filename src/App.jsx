@@ -27,14 +27,14 @@ const AppContent = () => {
   
   // Get logo/name for loading screen
   const getLogoName = () => {
-    if (!portfolioData) return 'Portfolio';
+    if (!portfolioData) return 'DIO';
     if (portfolioData.personal?.headerLogo) {
       return portfolioData.personal.headerLogo;
     }
     if (portfolioData.personal?.name) {
       return portfolioData.personal.name.split(' ')[0];
     }
-    return 'Portfolio';
+    return 'DIO';
   };
 
   useEffect(() => {
@@ -71,7 +71,7 @@ const AppContent = () => {
             href="#home" 
             className="text-2xl font-bold bg-gradient-to-r from-teal-500 to-emerald-400 bg-clip-text text-transparent hover:from-teal-400 hover:to-emerald-300 transition-all duration-300 inline-block"
           >
-            {portfolioData ? getLogoName() : 'Portfolio'}
+            {portfolioData ? getLogoName() : 'DIO'}
           </a>
         </div>
       </div>
