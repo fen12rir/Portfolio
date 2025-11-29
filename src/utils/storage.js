@@ -85,80 +85,14 @@ export const refreshPortfolioData = async () => {
   return await initializeCache();
 };
 
-// Compress base64 image data
-const compressImage = (base64String, maxWidth = 1200, quality = 0.8) => {
-  return new Promise((resolve) => {
-    if (!base64String || !base64String.startsWith('data:image')) {
-      resolve(base64String);
-      return;
-    }
-
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      let width = img.width;
-      let height = img.height;
-
-      // Resize if too large
-      if (width > maxWidth) {
-        height = (height * maxWidth) / width;
-        width = maxWidth;
-      }
-
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, width, height);
-
-      // Convert to compressed base64
-      const compressed = canvas.toDataURL('image/jpeg', quality);
-      resolve(compressed);
-    };
-    img.onerror = () => resolve(base64String); // Return original on error
-    img.src = base64String;
-  });
-};
-
-// Recursively compress all images in the data object
-const compressImagesInData = async (obj) => {
-  if (typeof obj !== 'object' || obj === null) return obj;
-  
-  if (Array.isArray(obj)) {
-    return Promise.all(obj.map(item => compressImagesInData(item)));
-  }
-
-  const result = {};
-  for (const [key, value] of Object.entries(obj)) {
-    if (typeof value === 'string' && value.startsWith('data:image')) {
-      result[key] = await compressImage(value);
-    } else if (typeof value === 'object' && value !== null) {
-      result[key] = await compressImagesInData(value);
-    } else {
-      result[key] = value;
-    }
-  }
-  return result;
-};
-
 export const savePortfolioData = async (data) => {
   try {
-    // Compress images before sending to reduce payload size
-    const compressedData = await compressImagesInData(data);
-    
-    // Check payload size
-    const payload = JSON.stringify(compressedData);
-    const sizeInMB = new Blob([payload]).size / (1024 * 1024);
-    
-    if (sizeInMB > 4) {
-      console.warn(`Payload size is ${sizeInMB.toFixed(2)}MB, which may exceed Vercel's limit`);
-    }
-
     const response = await fetch(`${API_BASE_URL}/portfolio`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: payload,
+      body: JSON.stringify(data),
     });
 
     if (!response.ok) {

@@ -21,6 +21,19 @@ export const PortfolioProvider = ({ children }) => {
     try {
       setIsLoading(true);
       const data = await getPortfolioDataAsync();
+      
+      // Check if the data is actually default data (by checking the default email)
+      const isDefaultData = data && 
+        data.personal?.email === "your.email@example.com";
+      
+      if (isDefaultData) {
+        console.warn('⚠️ Received default portfolio data from API. This usually means:');
+        console.warn('   1. MongoDB is not configured (MONGODB_URI not set in Vercel)');
+        console.warn('   2. MongoDB connection failed');
+        console.warn('   3. No custom data has been saved yet');
+        console.warn('   To save custom data, go to /admin and update your portfolio.');
+      }
+      
       // Set data from API (or default if API failed)
       if (data && Object.keys(data).length > 0) {
         setPortfolioData(data);

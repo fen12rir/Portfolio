@@ -37,32 +37,26 @@ const AdminDashboard = () => {
         social: cleanedSocial
       };
       
-      // Show saving state
-      setSaved(false);
-      
+      console.log('Saving portfolio data...', cleanedData);
       const result = await savePortfolioData(cleanedData);
+      console.log('Save result:', result);
       
       if (result && result.success !== false) {
-        setSaved(true);
+      setSaved(true);
         // Clear cache and reload fresh data from server
         clearCache();
         const freshData = await getPortfolioDataAsync();
         setData(freshData);
+        console.log('Data refreshed:', freshData);
         // Trigger refresh event for PortfolioContext
         window.dispatchEvent(new Event('portfolioDataUpdated'));
-        setTimeout(() => {
-          setSaved(false);
-        }, 1500);
+      setTimeout(() => {
+        setSaved(false);
+      }, 1500);
       } else {
         const errorMsg = result?.error || result?.message || 'Failed to save data. Please try again.';
         console.error('Save failed:', errorMsg, result);
-        
-        // Special handling for 413 (Payload Too Large)
-        if (errorMsg.includes('413') || errorMsg.includes('too large') || errorMsg.includes('PAYLOAD')) {
-          alert('Data is too large to save. Please reduce image sizes or remove some images. Images are being compressed automatically, but you may need to use smaller files.');
-        } else {
-          alert(errorMsg);
-        }
+        alert(errorMsg);
       }
     } catch (error) {
       console.error('Error in handleSave:', error);
