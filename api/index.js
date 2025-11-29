@@ -51,5 +51,14 @@ app.use((err, req, res, next) => {
 // Export as Vercel serverless function
 // Wrap Express app in a handler function for Vercel compatibility
 export default function handler(req, res) {
+  // Explicitly handle OPTIONS requests for CORS preflight
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Max-Age', '86400');
+    return res.status(200).end();
+  }
+  
   return app(req, res);
 }
