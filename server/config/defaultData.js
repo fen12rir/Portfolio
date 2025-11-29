@@ -1,0 +1,93 @@
+// Default portfolio data structure
+// This should match src/data/config.js
+export const defaultPortfolioData = {
+  personal: {
+    name: "DIO",
+    headerLogo: "",
+    title: "Full Stack Developer",
+    location: "Your Location",
+    email: "your.email@example.com",
+    phone: "+1 (234) 567-8900",
+    heroBio: "I'm a passionate developer who loves creating beautiful and functional web applications.",
+    bio: "I'm a passionate developer who loves creating beautiful and functional web applications. I specialize in modern web technologies and enjoy solving complex problems. With years of experience in full-stack development, I bring creativity and technical expertise to every project.",
+    avatar: "",
+  },
+  social: {
+    github: "https://github.com/yourusername",
+    linkedin: "https://linkedin.com/in/yourusername",
+    email: "mailto:your.email@example.com",
+  },
+  skills: [
+    { name: "React" },
+    { name: "JavaScript" },
+    { name: "TypeScript" },
+    { name: "Node.js" },
+    { name: "Python" },
+    { name: "Tailwind CSS" },
+    { name: "MongoDB" },
+    { name: "PostgreSQL" },
+  ],
+  projects: [
+    {
+      id: 1,
+      title: "Project One",
+      description: "A modern web application built with React and Node.js. Features include real-time updates, user authentication, and responsive design.",
+      images: [],
+      technologies: ["React", "Node.js", "MongoDB"],
+      github: "https://github.com/yourusername/project1",
+      live: "https://project1-demo.vercel.app",
+    },
+    {
+      id: 2,
+      title: "Project Two",
+      description: "An e-commerce platform with payment integration and inventory management. Built with modern best practices and scalable architecture.",
+      images: [],
+      technologies: ["Next.js", "Stripe", "PostgreSQL"],
+      github: "https://github.com/yourusername/project2",
+      live: "https://project2-demo.vercel.app",
+    },
+    {
+      id: 3,
+      title: "Project Three",
+      description: "A mobile-first dashboard application for data visualization and analytics. Includes real-time charts and interactive reports.",
+      images: [],
+      technologies: ["React", "D3.js", "Express"],
+      github: "https://github.com/yourusername/project3",
+      live: "https://project3-demo.vercel.app",
+    },
+  ],
+  experience: [
+    {
+      id: 1,
+      role: "Senior Developer",
+      company: "Tech Company",
+      period: "2022 - Present",
+      description: "Leading development of web applications using React and Node.js. Mentoring junior developers and implementing best practices.",
+    },
+    {
+      id: 2,
+      role: "Full Stack Developer",
+      company: "Startup Inc",
+      period: "2020 - 2022",
+      description: "Developed and maintained multiple client projects. Worked with various technologies including React, Vue, and Django.",
+    },
+  ],
+  education: [
+    {
+      id: 1,
+      degree: "Bachelor of Science in Computer Science",
+      institution: "University Name",
+      period: "2016 - 2020",
+    },
+  ],
+  gallery: [
+    {
+      id: 1,
+      title: "Sample Image",
+      description: "This is a sample gallery image. You can add your own images and descriptions in the admin panel.",
+      url: "",
+    },
+  ],
+  certificates: [],
+};
+
