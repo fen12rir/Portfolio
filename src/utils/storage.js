@@ -1,6 +1,7 @@
 import { defaultPortfolioData } from '../data/config';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+// Use environment variable or current origin for API
+const API_BASE_URL = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? `${window.location.origin}/api` : '/api');
 
 // Cache for portfolio data
 let cachedData = null;
