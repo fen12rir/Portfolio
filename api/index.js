@@ -10,8 +10,15 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Routes
-app.use('/portfolio', portfolioRoutes);
+// Routes - ensure portfolioRoutes is a valid router
+if (portfolioRoutes && typeof portfolioRoutes === 'function') {
+  app.use('/portfolio', portfolioRoutes);
+} else {
+  console.error('portfolioRoutes is not a valid router:', typeof portfolioRoutes);
+  app.use('/portfolio', (req, res) => {
+    res.status(500).json({ error: 'Portfolio routes not available' });
+  });
+}
 
 // Health check endpoint
 app.get('/health', (req, res) => {
