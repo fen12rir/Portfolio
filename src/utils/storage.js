@@ -22,6 +22,16 @@ const initializeCache = async () => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
+      // Check if response is actually JSON before parsing
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        // If we got HTML or other non-JSON, log it and use default data
+        const text = await response.text();
+        console.warn('Received non-JSON response from API:', contentType, text.substring(0, 100));
+        cachedData = defaultPortfolioData;
+        return defaultPortfolioData;
+      }
+      
       const data = await response.json();
       cachedData = data;
       return data;
@@ -79,10 +89,26 @@ export const savePortfolioData = async (data) => {
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      // Try to parse error response as JSON, but handle HTML errors
+      const contentType = response.headers.get('content-type');
+      let errorData = {};
+      if (contentType && contentType.includes('application/json')) {
+        errorData = await response.json().catch(() => ({}));
+      } else {
+        const text = await response.text();
+        console.warn('Received non-JSON error response:', text.substring(0, 100));
+      }
       const errorMessage = errorData.error || errorData.message || `HTTP error! status: ${response.status}`;
       console.error('Save failed with status:', response.status, errorData);
       throw new Error(errorMessage);
+    }
+
+    // Check if response is JSON before parsing
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.warn('Received non-JSON response from save API:', contentType, text.substring(0, 100));
+      throw new Error('Invalid response format from server');
     }
 
     const result = await response.json();
@@ -106,6 +132,14 @@ export const resetPortfolioData = async () => {
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    // Check if response is JSON before parsing
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.warn('Received non-JSON response from reset API:', contentType, text.substring(0, 100));
+      return defaultPortfolioData;
     }
 
     const result = await response.json();
