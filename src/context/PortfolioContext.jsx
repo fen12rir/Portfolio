@@ -16,10 +16,10 @@ export const PortfolioProvider = ({ children }) => {
   const [portfolioData, setPortfolioData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const loadPortfolioData = async () => {
+  const loadPortfolioData = async (forceRefresh = false) => {
     try {
       setIsLoading(true);
-      const result = await getPortfolioDataWithStatus();
+      const result = await getPortfolioDataWithStatus(forceRefresh);
       
       if (result && result.data && Object.keys(result.data).length > 0) {
         const hasData = result.data.personal || result.data.skills?.length > 0 || result.data.projects?.length > 0;
@@ -48,10 +48,9 @@ export const PortfolioProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    // Load data in background without blocking render
-    loadPortfolioData();
+    clearCache();
+    loadPortfolioData(true);
     
-    // Listen for storage events (when data is updated in another tab/window)
     const handleStorageChange = (e) => {
       if (e.key === 'portfolio_data_updated') {
         refreshPortfolioData();
@@ -59,8 +58,6 @@ export const PortfolioProvider = ({ children }) => {
     };
     
     window.addEventListener('storage', handleStorageChange);
-    
-    // Listen for custom event for same-tab updates
     window.addEventListener('portfolioDataUpdated', refreshPortfolioData);
     
     return () => {

@@ -8,21 +8,34 @@ if (import.meta.env.DEV) {
   console.log('API Base URL:', API_BASE_URL);
 }
 
-// Cache for portfolio data
 let cachedData = null;
+let cacheTimestamp = null;
 let isLoading = false;
 let loadPromise = null;
+const CACHE_DURATION = 60000;
 
 export const isDefaultData = (data) => {
   if (!data || !data.personal) return false;
   return data.personal.email === "your.email@example.com";
 };
 
-const initializeCache = async (timeout = 3000) => {
-  if (cachedData) {
-    return Promise.resolve({ data: cachedData, isCustomized: !isDefaultData(cachedData) });
+const isCacheValid = () => {
+  if (!cachedData || !cacheTimestamp) return false;
+  const now = Date.now();
+  return (now - cacheTimestamp) < CACHE_DURATION;
+};
+
+const initializeCache = async (timeout = 5000, forceRefresh = false) => {
+  if (!forceRefresh && cachedData && isCacheValid() && !isDefaultData(cachedData)) {
+    return Promise.resolve({ data: cachedData, isCustomized: true });
   }
-  if (loadPromise) return loadPromise;
+  
+  if (forceRefresh || isDefaultData(cachedData)) {
+    cachedData = null;
+    cacheTimestamp = null;
+  }
+  
+  if (loadPromise && !forceRefresh) return loadPromise;
   
   loadPromise = (async () => {
     try {
@@ -63,10 +76,15 @@ const initializeCache = async (timeout = 3000) => {
       }
       
       cachedData = data;
+      cacheTimestamp = Date.now();
       
       return { data, isCustomized };
     } catch (error) {
-      return { data: defaultPortfolioData, isCustomized: false };
+      if (forceRefresh || !cachedData) {
+        cachedData = defaultPortfolioData;
+        cacheTimestamp = Date.now();
+      }
+      return { data: cachedData || defaultPortfolioData, isCustomized: false };
     } finally {
       isLoading = false;
       loadPromise = null;
@@ -79,9 +97,9 @@ const initializeCache = async (timeout = 3000) => {
 // Don't initialize cache on module load - let it load on demand
 // This prevents blocking the initial render
 
-// Clear cache to force refresh
 export const clearCache = () => {
   cachedData = null;
+  cacheTimestamp = null;
   loadPromise = null;
 };
 
@@ -90,25 +108,24 @@ export const getPortfolioData = () => {
   return cachedData || defaultPortfolioData;
 };
 
-export const getPortfolioDataAsync = async () => {
-  if (cachedData && !isLoading) {
+export const getPortfolioDataAsync = async (forceRefresh = false) => {
+  if (!forceRefresh && cachedData && isCacheValid() && !isDefaultData(cachedData) && !isLoading) {
     return cachedData;
   }
-  const result = await initializeCache();
+  const result = await initializeCache(5000, forceRefresh);
   return result.data || defaultPortfolioData;
 };
 
-export const getPortfolioDataWithStatus = async () => {
-  if (cachedData && !isLoading) {
-    return { data: cachedData, isCustomized: !isDefaultData(cachedData) };
+export const getPortfolioDataWithStatus = async (forceRefresh = false) => {
+  if (!forceRefresh && cachedData && isCacheValid() && !isDefaultData(cachedData) && !isLoading) {
+    return { data: cachedData, isCustomized: true };
   }
-  return await initializeCache();
+  return await initializeCache(5000, forceRefresh);
 };
 
-// Refresh data from server (clears cache and fetches fresh data)
 export const refreshPortfolioData = async () => {
   clearCache();
-  const result = await initializeCache();
+  const result = await initializeCache(5000, true);
   return result.data;
 };
 
@@ -180,9 +197,12 @@ export const savePortfolioData = async (data, isPartialUpdate = false) => {
       }
 
       const result = await response.json();
-      // Clear cache to force refresh on next load (especially important for partial updates)
       clearCache();
-      // Don't update cache with partial data - let it reload from server
+      const freshResult = await initializeCache(5000, true);
+      if (freshResult && freshResult.data) {
+        cachedData = freshResult.data;
+        cacheTimestamp = Date.now();
+      }
       return { success: true, ...result };
     } catch (fetchError) {
       clearTimeout(timeoutId);
@@ -238,8 +258,8 @@ export const resetPortfolioData = async () => {
     }
 
     const result = await response.json();
-    // Update cache
     cachedData = result.data || defaultPortfolioData;
+    cacheTimestamp = Date.now();
     return cachedData;
   } catch (error) {
     console.error('Error resetting portfolio data:', error);

@@ -16,7 +16,7 @@ const AdminDashboard = () => {
   useEffect(() => {
     const loadData = async () => {
       clearCache();
-      const portfolioData = await getPortfolioDataAsync();
+      const portfolioData = await getPortfolioDataAsync(true);
       if (portfolioData && Object.keys(portfolioData).length > 0) {
         setData(portfolioData);
         setOriginalData(JSON.parse(JSON.stringify(portfolioData)));
@@ -225,13 +225,11 @@ const AdminDashboard = () => {
       
       if (result && result.success !== false) {
         setSaved(true);
-        // Clear cache and reload fresh data from server
         clearCache();
-        const freshData = await getPortfolioDataAsync();
+        const freshData = await getPortfolioDataAsync(true);
         setData(freshData);
-        setOriginalData(JSON.parse(JSON.stringify(freshData))); // Update original data
+        setOriginalData(JSON.parse(JSON.stringify(freshData)));
         console.log('Data refreshed:', freshData);
-        // Trigger refresh event for PortfolioContext
         window.dispatchEvent(new Event('portfolioDataUpdated'));
         setTimeout(() => {
           setSaved(false);
@@ -251,8 +249,9 @@ const AdminDashboard = () => {
     if (window.confirm('Are you sure you want to reset all data to defaults? This cannot be undone.')) {
       await resetPortfolioData();
       clearCache();
-      const freshData = await getPortfolioDataAsync();
+      const freshData = await getPortfolioDataAsync(true);
       setData(freshData);
+      window.dispatchEvent(new Event('portfolioDataUpdated'));
       window.location.reload();
     }
   };
