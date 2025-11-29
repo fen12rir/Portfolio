@@ -1,4 +1,5 @@
 // Vercel serverless function for portfolio API routes
+console.log('Portfolio API module loading...');
 import express from 'express';
 import cors from 'cors';
 import { defaultPortfolioData } from '../server/config/defaultData.js';
@@ -197,16 +198,34 @@ router.delete('/', asyncHandler(async (req, res) => {
 
 // Export as Vercel serverless function
 // Wrap Express app in a handler function for Vercel compatibility
+console.log('Portfolio API handler exported');
 export default function handler(req, res) {
-  // Explicitly handle OPTIONS requests for CORS preflight
-  if (req.method === 'OPTIONS') {
+  try {
+    // Explicitly handle OPTIONS requests for CORS preflight
+    if (req.method === 'OPTIONS') {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.setHeader('Access-Control-Max-Age', '86400');
+      return res.status(200).end();
+    }
+    
+    // Log for debugging
+    console.log('Portfolio API handler called:', {
+      method: req.method,
+      url: req.url,
+      path: req.path,
+      originalUrl: req.originalUrl
+    });
+    
+    // Handle the request with Express app
+    return app(req, res);
+  } catch (error) {
+    console.error('Error in portfolio handler:', error);
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.setHeader('Access-Control-Max-Age', '86400');
-    return res.status(200).end();
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: error.message 
+    });
   }
-  
-  // Handle the request with Express app
-  return app(req, res);
 }
