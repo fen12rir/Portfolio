@@ -22,11 +22,28 @@ const getPortfolioModels = async () => {
 
 const migrateOldData = async (OldPortfolio) => {
   try {
-    const oldPortfolio = await OldPortfolio.findOne();
-    if (!oldPortfolio || !oldPortfolio.data) return false;
+    const oldPortfolio = await OldPortfolio.findOne()
+      .lean()
+      .maxTimeMS(30000)
+      .select('data isCustomized')
+      .catch(() => null);
+      
+    if (!oldPortfolio || !oldPortfolio.data) {
+      try {
+        await OldPortfolio.deleteMany({}).maxTimeMS(5000);
+      } catch (e) {
+        console.log('Could not delete empty old portfolio');
+      }
+      return false;
+    }
 
     const models = await getPortfolioModels();
     const data = oldPortfolio.data;
+    
+    if (!data || typeof data !== 'object') {
+      await OldPortfolio.deleteMany({}).maxTimeMS(5000).catch(() => {});
+      return false;
+    }
 
     const portfolio = await models.Portfolio.create({
       personal: data.personal || {},
@@ -107,10 +124,24 @@ const migrateOldData = async (OldPortfolio) => {
       await models.Gallery.insertMany(galleryToInsert);
     }
 
-    await OldPortfolio.deleteMany({});
+    await OldPortfolio.deleteMany({}).maxTimeMS(5000);
+    
+    const mongoose = (await import('./mongodb.js')).default;
+    const db = mongoose.connection.db;
+    try {
+      await db.collection('portfolios').drop().catch(() => {});
+    } catch (dropError) {
+      console.log('Could not drop old portfolios collection:', dropError.message);
+    }
+    
     return true;
   } catch (error) {
     console.error('Migration error:', error);
+    try {
+      await OldPortfolio.deleteMany({}).maxTimeMS(5000).catch(() => {});
+    } catch (cleanupError) {
+      console.error('Cleanup error:', cleanupError);
+    }
     return false;
   }
 };
@@ -160,12 +191,28 @@ router.get('/', asyncHandler(async (req, res) => {
       let portfolio = await models.Portfolio.getPortfolio();
       
       if (!portfolio) {
-        const mongoose = (await import('./mongodb.js')).default;
-        const OldPortfolioModule = await import('../server/models/Portfolio.js');
-        const OldPortfolio = OldPortfolioModule.createPortfolioModel(mongoose);
-        const migrated = await migrateOldData(OldPortfolio);
-        if (migrated) {
-          portfolio = await models.Portfolio.getPortfolio();
+        try {
+          const mongoose = (await import('./mongodb.js')).default;
+          const db = mongoose.connection.db;
+          const oldCollection = db.collection('portfolios');
+          const oldCount = await oldCollection.countDocuments({}, { maxTimeMS: 5000 }).catch(() => 0);
+          
+          if (oldCount > 0) {
+            const OldPortfolioModule = await import('../server/models/Portfolio.js');
+            const OldPortfolio = OldPortfolioModule.createPortfolioModel(mongoose);
+            const migrated = await migrateOldData(OldPortfolio);
+            if (migrated) {
+              portfolio = await models.Portfolio.getPortfolio();
+              try {
+                await oldCollection.drop({ maxTimeMS: 10000 });
+                console.log('Successfully migrated and dropped old portfolios collection');
+              } catch (dropError) {
+                console.log('Migration successful but could not drop old collection:', dropError.message);
+              }
+            }
+          }
+        } catch (migrationError) {
+          console.error('Migration attempt failed:', migrationError.message);
         }
       }
 
@@ -259,7 +306,61 @@ router.post('/', asyncHandler(async (req, res) => {
   }
 }));
 
-// Reset portfolio data
+router.post('/cleanup', asyncHandler(async (req, res) => {
+  try {
+    if (!process.env.MONGODB_URI) {
+      return res.status(503).json({ 
+        success: false,
+        error: 'MongoDB not configured'
+      });
+    }
+
+    await connectMongo();
+    if (!isMongoConnected()) {
+      return res.status(503).json({ 
+        success: false,
+        error: 'MongoDB not connected'
+      });
+    }
+
+    const mongoose = (await import('./mongodb.js')).default;
+    const db = mongoose.connection.db;
+    
+    try {
+      const oldCollection = db.collection('portfolios');
+      const count = await oldCollection.countDocuments({}, { maxTimeMS: 5000 });
+      
+      if (count > 0) {
+        await oldCollection.drop({ maxTimeMS: 10000 });
+        return res.json({ 
+          success: true, 
+          message: `Deleted old portfolios collection with ${count} document(s)` 
+        });
+      } else {
+        return res.json({ 
+          success: true, 
+          message: 'Old portfolios collection does not exist or is empty' 
+        });
+      }
+    } catch (dropError) {
+      if (dropError.codeName === 'NamespaceNotFound') {
+        return res.json({ 
+          success: true, 
+          message: 'Old portfolios collection does not exist' 
+        });
+      }
+      throw dropError;
+    }
+  } catch (error) {
+    console.error('Cleanup error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to cleanup old collection', 
+      details: error.message 
+    });
+  }
+}));
+
 router.delete('/', asyncHandler(async (req, res) => {
   try {
     if (!process.env.MONGODB_URI) {
