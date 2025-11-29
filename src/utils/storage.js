@@ -1,18 +1,37 @@
 import { defaultPortfolioData } from '../data/config';
 
-// Use environment variable or current origin for API
 const API_BASE_URL = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? `${window.location.origin}/api` : '/api');
 
-// Log API URL in development for debugging
 if (import.meta.env.DEV) {
   console.log('API Base URL:', API_BASE_URL);
 }
 
 let cachedData = null;
 let cacheTimestamp = null;
+let dataVersion = 0;
 let isLoading = false;
 let loadPromise = null;
-const CACHE_DURATION = 60000;
+const CACHE_DURATION = 30000;
+const STORAGE_KEY = 'portfolio_cache';
+const VERSION_KEY = 'portfolio_version';
+
+let broadcastChannel = null;
+if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+  try {
+    broadcastChannel = new BroadcastChannel('portfolio_updates');
+    broadcastChannel.onmessage = (event) => {
+      if (event.data.type === 'data_updated') {
+        clearCache();
+        if (event.data.version > dataVersion) {
+          dataVersion = event.data.version;
+          loadFromStorage();
+        }
+      }
+    };
+  } catch (e) {
+    console.warn('BroadcastChannel not available:', e);
+  }
+}
 
 export const isDefaultData = (data) => {
   if (!data || !data.personal) return false;
@@ -25,9 +44,79 @@ const isCacheValid = () => {
   return (now - cacheTimestamp) < CACHE_DURATION;
 };
 
+const saveToStorage = (data) => {
+  if (typeof window === 'undefined') return;
+  try {
+    const storageData = {
+      data,
+      timestamp: Date.now(),
+      version: dataVersion
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(storageData));
+    localStorage.setItem(VERSION_KEY, dataVersion.toString());
+  } catch (e) {
+    console.warn('Failed to save to localStorage:', e);
+  }
+};
+
+const loadFromStorage = () => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) return null;
+    
+    const { data, timestamp, version } = JSON.parse(stored);
+    const age = Date.now() - timestamp;
+    
+    if (age < CACHE_DURATION && data && !isDefaultData(data)) {
+      cachedData = data;
+      cacheTimestamp = timestamp;
+      if (version) dataVersion = version;
+      return data;
+    }
+  } catch (e) {
+    console.warn('Failed to load from localStorage:', e);
+  }
+  return null;
+};
+
+const notifyOtherTabs = () => {
+  dataVersion++;
+  if (broadcastChannel) {
+    try {
+      broadcastChannel.postMessage({ 
+        type: 'data_updated', 
+        version: dataVersion,
+        timestamp: Date.now()
+      });
+    } catch (e) {
+      console.warn('Failed to broadcast update:', e);
+    }
+  }
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(VERSION_KEY, dataVersion.toString());
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: VERSION_KEY,
+        newValue: dataVersion.toString(),
+        url: window.location.href
+      }));
+    } catch (e) {
+      console.warn('Failed to dispatch storage event:', e);
+    }
+  }
+};
+
 const initializeCache = async (timeout = 5000, forceRefresh = false) => {
-  if (!forceRefresh && cachedData && isCacheValid() && !isDefaultData(cachedData)) {
-    return Promise.resolve({ data: cachedData, isCustomized: true });
+  if (!forceRefresh) {
+    const storedData = loadFromStorage();
+    if (storedData && !isDefaultData(storedData)) {
+      return Promise.resolve({ data: storedData, isCustomized: true });
+    }
+    
+    if (cachedData && isCacheValid() && !isDefaultData(cachedData)) {
+      return Promise.resolve({ data: cachedData, isCustomized: true });
+    }
   }
   
   if (forceRefresh || isDefaultData(cachedData)) {
@@ -42,14 +131,18 @@ const initializeCache = async (timeout = 5000, forceRefresh = false) => {
       isLoading = true;
       const apiUrl = `${API_BASE_URL}/portfolio`;
       
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Request timeout')), timeout);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      
+      const response = await fetch(apiUrl, {
+        signal: controller.signal,
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
       });
       
-      const response = await Promise.race([
-        fetch(apiUrl),
-        timeoutPromise
-      ]);
+      clearTimeout(timeoutId);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -57,6 +150,10 @@ const initializeCache = async (timeout = 5000, forceRefresh = false) => {
       
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
+        const storedData = loadFromStorage();
+        if (storedData && !isDefaultData(storedData)) {
+          return { data: storedData, isCustomized: true };
+        }
         return { data: defaultPortfolioData, isCustomized: false };
       }
       
@@ -72,14 +169,36 @@ const initializeCache = async (timeout = 5000, forceRefresh = false) => {
       }
       
       if (!data || Object.keys(data).length === 0) {
+        const storedData = loadFromStorage();
+        if (storedData && !isDefaultData(storedData)) {
+          return { data: storedData, isCustomized: true };
+        }
         data = defaultPortfolioData;
+        isCustomized = false;
       }
       
       cachedData = data;
       cacheTimestamp = Date.now();
       
+      if (!isDefaultData(data)) {
+        saveToStorage(data);
+      }
+      
       return { data, isCustomized };
     } catch (error) {
+      if (error.name === 'AbortError') {
+        console.warn('Request timeout, using cached or default data');
+      } else {
+        console.warn('Error fetching portfolio data:', error.message);
+      }
+      
+      const storedData = loadFromStorage();
+      if (storedData && !isDefaultData(storedData)) {
+        cachedData = storedData;
+        cacheTimestamp = Date.now();
+        return { data: storedData, isCustomized: true };
+      }
+      
       if (forceRefresh || !cachedData) {
         cachedData = defaultPortfolioData;
         cacheTimestamp = Date.now();
@@ -94,13 +213,30 @@ const initializeCache = async (timeout = 5000, forceRefresh = false) => {
   return loadPromise;
 };
 
-// Don't initialize cache on module load - let it load on demand
-// This prevents blocking the initial render
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === VERSION_KEY && e.newValue) {
+      const newVersion = parseInt(e.newValue, 10);
+      if (newVersion > dataVersion) {
+        dataVersion = newVersion;
+        clearCache();
+        loadFromStorage();
+      }
+    }
+  });
+}
 
 export const clearCache = () => {
   cachedData = null;
   cacheTimestamp = null;
   loadPromise = null;
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (e) {
+      console.warn('Failed to clear localStorage:', e);
+    }
+  }
 };
 
 // Synchronous version for backward compatibility (returns cached data or default)
@@ -144,9 +280,11 @@ export const savePortfolioData = async (data, isPartialUpdate = false) => {
       sections: Object.keys(data)
     });
     
-    // Test if API endpoint is accessible first
     try {
-      const testResponse = await fetch(`${API_BASE_URL}/health`, { method: 'GET' });
+      const testResponse = await fetch(`${API_BASE_URL}/health`, { 
+        method: 'GET',
+        headers: { 'Cache-Control': 'no-cache' }
+      });
       if (!testResponse.ok) {
         console.warn('⚠️ Health check failed, API might not be accessible');
       } else {
@@ -157,9 +295,8 @@ export const savePortfolioData = async (data, isPartialUpdate = false) => {
       throw new Error(`Cannot connect to API at ${API_BASE_URL}. Check your VITE_API_URL environment variable.`);
     }
     
-    // Add timeout to prevent hanging
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
     
     try {
       const response = await fetch(apiUrl, {
@@ -167,6 +304,7 @@ export const savePortfolioData = async (data, isPartialUpdate = false) => {
         headers: {
           'Content-Type': 'application/json',
           'X-Partial-Update': isPartialUpdate ? 'true' : 'false',
+          'Cache-Control': 'no-cache'
         },
         body: payload,
         signal: controller.signal,
@@ -175,7 +313,6 @@ export const savePortfolioData = async (data, isPartialUpdate = false) => {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        // Try to parse error response as JSON, but handle HTML errors
         const contentType = response.headers.get('content-type');
         let errorData = {};
         if (contentType && contentType.includes('application/json')) {
@@ -188,7 +325,6 @@ export const savePortfolioData = async (data, isPartialUpdate = false) => {
         throw new Error(errorMessage);
       }
 
-      // Check if response is JSON before parsing
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
         const text = await response.text();
@@ -202,6 +338,10 @@ export const savePortfolioData = async (data, isPartialUpdate = false) => {
       if (freshResult && freshResult.data) {
         cachedData = freshResult.data;
         cacheTimestamp = Date.now();
+        if (!isDefaultData(freshResult.data)) {
+          saveToStorage(freshResult.data);
+          notifyOtherTabs();
+        }
       }
       return { success: true, ...result };
     } catch (fetchError) {
@@ -214,7 +354,6 @@ export const savePortfolioData = async (data, isPartialUpdate = false) => {
   } catch (error) {
     console.error('Error saving portfolio data:', error);
     
-    // Provide more helpful error messages
     let errorMessage = error.message;
     if (error.message === 'Failed to fetch') {
       errorMessage = `Network error: Could not connect to ${API_BASE_URL}/portfolio. ` +
@@ -243,26 +382,31 @@ export const resetPortfolioData = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/portfolio`, {
       method: 'DELETE',
+      headers: { 'Cache-Control': 'no-cache' }
     });
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    // Check if response is JSON before parsing
     const contentType = response.headers.get('content-type');
     if (!contentType || !contentType.includes('application/json')) {
       const text = await response.text();
       console.warn('Received non-JSON response from reset API:', contentType, text.substring(0, 100));
+      clearCache();
+      notifyOtherTabs();
       return defaultPortfolioData;
     }
 
     const result = await response.json();
     cachedData = result.data || defaultPortfolioData;
     cacheTimestamp = Date.now();
+    clearCache();
+    notifyOtherTabs();
     return cachedData;
   } catch (error) {
     console.error('Error resetting portfolio data:', error);
+    clearCache();
     return defaultPortfolioData;
   }
 };

@@ -172,18 +172,33 @@ app.use('/', router);
 router.get('/', asyncHandler(async (req, res) => {
   try {
     if (!process.env.MONGODB_URI) {
-      return res.status(200).json({ data: defaultPortfolioData, isCustomized: false });
+      return res.status(200).json({ 
+        data: defaultPortfolioData, 
+        isCustomized: false,
+        version: Date.now(),
+        timestamp: new Date().toISOString()
+      });
     }
     
     try {
-      await connectMongo();
+      await connectMongo(3);
     } catch (mongoError) {
       console.error('MongoDB connection failed:', mongoError.message);
-      return res.status(200).json({ data: defaultPortfolioData, isCustomized: false });
+      return res.status(200).json({ 
+        data: defaultPortfolioData, 
+        isCustomized: false,
+        version: Date.now(),
+        timestamp: new Date().toISOString()
+      });
     }
     
     if (!isMongoConnected()) {
-      return res.status(200).json({ data: defaultPortfolioData, isCustomized: false });
+      return res.status(200).json({ 
+        data: defaultPortfolioData, 
+        isCustomized: false,
+        version: Date.now(),
+        timestamp: new Date().toISOString()
+      });
     }
 
     try {
@@ -217,12 +232,22 @@ router.get('/', asyncHandler(async (req, res) => {
       }
 
       if (!portfolio) {
-        return res.status(200).json({ data: defaultPortfolioData, isCustomized: false });
+        return res.status(200).json({ 
+          data: defaultPortfolioData, 
+          isCustomized: false,
+          version: Date.now(),
+          timestamp: new Date().toISOString()
+        });
       }
 
       const fullPortfolio = await models.Portfolio.getFullPortfolio();
       if (!fullPortfolio) {
-        return res.status(200).json({ data: defaultPortfolioData, isCustomized: false });
+        return res.status(200).json({ 
+          data: defaultPortfolioData, 
+          isCustomized: false,
+          version: Date.now(),
+          timestamp: new Date().toISOString()
+        });
       }
 
       const hasCustomData = fullPortfolio.personal?.email && 
@@ -238,16 +263,31 @@ router.get('/', asyncHandler(async (req, res) => {
         await portfolio.save().catch(err => console.error('Error updating isCustomized:', err));
       }
       
-      return res.status(200).json({ data: fullPortfolio, isCustomized: hasCustomData || isCustomized });
+      return res.status(200).json({ 
+        data: fullPortfolio, 
+        isCustomized: hasCustomData || isCustomized,
+        version: portfolio.updatedAt ? new Date(portfolio.updatedAt).getTime() : Date.now(),
+        timestamp: new Date().toISOString()
+      });
     } catch (modelError) {
       console.error('Error with Portfolio model:', modelError);
       console.error('Error stack:', modelError.stack);
-      return res.status(200).json({ data: defaultPortfolioData, isCustomized: false });
+      return res.status(200).json({ 
+        data: defaultPortfolioData, 
+        isCustomized: false,
+        version: Date.now(),
+        timestamp: new Date().toISOString()
+      });
     }
   } catch (error) {
     console.error('Unexpected error fetching portfolio data:', error);
     console.error('Error stack:', error.stack);
-    return res.status(200).json({ data: defaultPortfolioData, isCustomized: false });
+    return res.status(200).json({ 
+      data: defaultPortfolioData, 
+      isCustomized: false,
+      version: Date.now(),
+      timestamp: new Date().toISOString()
+    });
   }
 }));
 
@@ -314,9 +354,14 @@ router.post('/', asyncHandler(async (req, res) => {
       };
     }
     
-    await models.Portfolio.updatePortfolio(dataToSave);
+    const updatedPortfolio = await models.Portfolio.updatePortfolio(dataToSave);
     
-    res.json({ success: true, message: 'Portfolio data saved successfully' });
+    res.json({ 
+      success: true, 
+      message: 'Portfolio data saved successfully',
+      version: updatedPortfolio.updatedAt ? new Date(updatedPortfolio.updatedAt).getTime() : Date.now(),
+      timestamp: new Date().toISOString()
+    });
   } catch (error) {
     console.error('Error saving portfolio data:', error.message);
     console.error('Error stack:', error.stack);
@@ -408,8 +453,14 @@ router.delete('/', asyncHandler(async (req, res) => {
     }
 
     const models = await getPortfolioModels();
-    await models.Portfolio.resetPortfolio(defaultPortfolioData);
-    res.json({ success: true, message: 'Portfolio data reset successfully', data: defaultPortfolioData });
+    const resetPortfolio = await models.Portfolio.resetPortfolio(defaultPortfolioData);
+    res.json({ 
+      success: true, 
+      message: 'Portfolio data reset successfully', 
+      data: defaultPortfolioData,
+      version: resetPortfolio.updatedAt ? new Date(resetPortfolio.updatedAt).getTime() : Date.now(),
+      timestamp: new Date().toISOString()
+    });
   } catch (error) {
     console.error('Error resetting portfolio data:', error.message);
     res.status(500).json({ success: false, error: 'Failed to reset portfolio data', details: error.message });
@@ -418,12 +469,19 @@ router.delete('/', asyncHandler(async (req, res) => {
 
 export default function handler(req, res) {
   try {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Partial-Update, Cache-Control');
+    
     if (req.method === 'OPTIONS') {
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
       res.setHeader('Access-Control-Max-Age', '86400');
       return res.status(200).end();
+    }
+    
+    if (req.method === 'GET') {
+      res.setHeader('Cache-Control', 'public, max-age=30, s-maxage=30, stale-while-revalidate=60');
+    } else {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     }
     
     const originalUrl = req.url;

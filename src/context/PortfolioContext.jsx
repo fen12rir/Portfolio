@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { getPortfolioDataWithStatus, clearCache } from '../utils/storage';
 
 const PortfolioContext = createContext();
@@ -12,14 +12,23 @@ export const usePortfolio = () => {
 };
 
 export const PortfolioProvider = ({ children }) => {
-  // Start with null - don't show default data until API responds
   const [portfolioData, setPortfolioData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const loadingRef = useRef(false);
+  const mountedRef = useRef(true);
 
-  const loadPortfolioData = async (forceRefresh = false) => {
+  const loadPortfolioData = useCallback(async (forceRefresh = false) => {
+    if (loadingRef.current && !forceRefresh) {
+      return;
+    }
+
     try {
+      loadingRef.current = true;
       setIsLoading(true);
+      
       const result = await getPortfolioDataWithStatus(forceRefresh);
+      
+      if (!mountedRef.current) return;
       
       if (result && result.data && Object.keys(result.data).length > 0) {
         const hasData = result.data.personal || result.data.skills?.length > 0 || result.data.projects?.length > 0;
@@ -36,38 +45,54 @@ export const PortfolioProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Error loading portfolio data:', error);
-      setPortfolioData(null);
+      if (mountedRef.current) {
+        setPortfolioData(null);
+      }
     } finally {
-      setIsLoading(false);
+      if (mountedRef.current) {
+        setIsLoading(false);
+      }
+      loadingRef.current = false;
     }
-  };
+  }, []);
 
-  const refreshPortfolioData = async () => {
+  const refreshPortfolioData = useCallback(async () => {
     clearCache();
-    await loadPortfolioData();
-  };
+    await loadPortfolioData(true);
+  }, [loadPortfolioData]);
 
   useEffect(() => {
+    mountedRef.current = true;
+    
     clearCache();
     loadPortfolioData(true);
     
     const handleStorageChange = (e) => {
-      if (e.key === 'portfolio_data_updated') {
+      if (e.key === 'portfolio_version' || e.key === 'portfolio_cache') {
+        if (!loadingRef.current) {
+          loadPortfolioData(true);
+        }
+      }
+    };
+    
+    const handlePortfolioUpdate = () => {
+      if (!loadingRef.current) {
         refreshPortfolioData();
       }
     };
     
     window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('portfolioDataUpdated', refreshPortfolioData);
+    window.addEventListener('portfolioDataUpdated', handlePortfolioUpdate);
     
     return () => {
+      mountedRef.current = false;
       window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('portfolioDataUpdated', refreshPortfolioData);
+      window.removeEventListener('portfolioDataUpdated', handlePortfolioUpdate);
     };
-  }, []);
+  }, [loadPortfolioData, refreshPortfolioData]);
 
   const value = {
-    portfolioData, // Can be null while loading
+    portfolioData,
     isLoading,
     refreshPortfolioData,
   };

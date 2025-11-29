@@ -1,17 +1,16 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense, memo } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { PortfolioProvider, usePortfolio } from './context/PortfolioContext';
 import Header from './components/Header';
 import Hero from './components/Hero';
 import About from './components/About';
-import Skills from './components/Skills';
-import Projects from './components/Projects';
-import Certificates from './components/Certificates';
-import ImageGallery from './components/ImageGallery';
-import Contact from './components/Contact';
-import Footer from './components/Footer';
 
-// Lazy load admin components (not needed on initial page load)
+const Skills = lazy(() => import('./components/Skills'));
+const Projects = lazy(() => import('./components/Projects'));
+const Certificates = lazy(() => import('./components/Certificates'));
+const ImageGallery = lazy(() => import('./components/ImageGallery'));
+const Contact = lazy(() => import('./components/Contact'));
+const Footer = lazy(() => import('./components/Footer'));
 const Login = lazy(() => import('./components/Login'));
 const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
 
@@ -149,12 +148,18 @@ const AppContent = () => {
       <Header />
       <Hero />
       <About />
-      <ImageGallery />
-      <Skills />
-      <Projects />
-      <Certificates />
-      <Contact />
-      <Footer />
+      <Suspense fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-stone-400">Loading...</div>
+        </div>
+      }>
+        <ImageGallery />
+        <Skills />
+        <Projects />
+        <Certificates />
+        <Contact />
+        <Footer />
+      </Suspense>
     </div>
   );
 };

@@ -14,22 +14,41 @@ const AdminDashboard = () => {
   const [dragOverIndex, setDragOverIndex] = useState(null);
 
   useEffect(() => {
+    let mounted = true;
+    
     const loadData = async () => {
-      clearCache();
-      const portfolioData = await getPortfolioDataAsync(true);
-      if (portfolioData && Object.keys(portfolioData).length > 0) {
-        setData(portfolioData);
-        setOriginalData(JSON.parse(JSON.stringify(portfolioData)));
-        if (import.meta.env.DEV) {
-          console.log('AdminDashboard loaded data:', portfolioData.personal?.email || 'No email');
+      try {
+        clearCache();
+        const portfolioData = await getPortfolioDataAsync(true);
+        
+        if (!mounted) return;
+        
+        if (portfolioData && Object.keys(portfolioData).length > 0) {
+          setData(portfolioData);
+          setOriginalData(JSON.parse(JSON.stringify(portfolioData)));
+          if (import.meta.env.DEV) {
+            console.log('AdminDashboard loaded data:', portfolioData.personal?.email || 'No email');
+          }
+        } else {
+          const defaultData = getPortfolioData();
+          setData(defaultData);
+          setOriginalData(JSON.parse(JSON.stringify(defaultData)));
         }
-      } else {
-        const defaultData = getPortfolioData();
-        setData(defaultData);
-        setOriginalData(JSON.parse(JSON.stringify(defaultData)));
+      } catch (error) {
+        console.error('Error loading data in AdminDashboard:', error);
+        if (mounted) {
+          const defaultData = getPortfolioData();
+          setData(defaultData);
+          setOriginalData(JSON.parse(JSON.stringify(defaultData)));
+        }
       }
     };
+    
     loadData();
+    
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   // Helper function to remove base64 images that haven't changed (keep only new/changed images)
@@ -159,12 +178,10 @@ const AdminDashboard = () => {
   const handleSave = async () => {
     try {
       if (!originalData) {
-        // First load, wait a bit for originalData to be set
         setTimeout(() => handleSave(), 100);
         return;
       }
 
-      // Clean up social links to only include allowed ones
       const allowedSocialKeys = ['github', 'linkedin', 'email'];
       const cleanedSocial = {};
       allowedSocialKeys.forEach(key => {
@@ -178,7 +195,6 @@ const AdminDashboard = () => {
         social: cleanedSocial
       };
       
-      // Get only changed fields
       const changedFields = getChangedFields(cleanedData, originalData);
       
       if (!changedFields) {
@@ -186,7 +202,6 @@ const AdminDashboard = () => {
         return;
       }
       
-      // Check payload size and warn if too large
       const payload = JSON.stringify(changedFields);
       const payloadSizeMB = new Blob([payload]).size / (1024 * 1024);
       
@@ -199,12 +214,10 @@ const AdminDashboard = () => {
         if (!proceed) return;
       }
       
-      // Log what we're sending (but limit the log size)
       const logData = {};
       Object.keys(changedFields).forEach(section => {
         const sectionData = changedFields[section];
         if (section === 'projects' || section === 'gallery') {
-          // For sections with images, just log counts and sizes
           logData[section] = Array.isArray(sectionData) 
             ? `${sectionData.length} items` 
             : 'object';
@@ -225,20 +238,24 @@ const AdminDashboard = () => {
         return;
       }
       
-      const result = await savePortfolioData(changedFields, true); // Pass true to indicate partial update
+      setSaved(false);
+      const result = await savePortfolioData(changedFields, true);
       console.log('Save result:', result);
       
       if (result && result.success !== false) {
         setSaved(true);
         clearCache();
+        
         const freshData = await getPortfolioDataAsync(true);
         setData(freshData);
         setOriginalData(JSON.parse(JSON.stringify(freshData)));
         console.log('Data refreshed:', freshData);
+        
         window.dispatchEvent(new Event('portfolioDataUpdated'));
+        
         setTimeout(() => {
           setSaved(false);
-        }, 1500);
+        }, 2000);
       } else {
         const errorMsg = result?.error || result?.message || 'Failed to save data. Please try again.';
         console.error('Save failed:', errorMsg, result);
@@ -247,17 +264,26 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error('Error in handleSave:', error);
       alert(`Error saving data: ${error.message}`);
+      setSaved(false);
     }
   };
 
   const handleReset = async () => {
     if (window.confirm('Are you sure you want to reset all data to defaults? This cannot be undone.')) {
-      await resetPortfolioData();
-      clearCache();
-      const freshData = await getPortfolioDataAsync(true);
-      setData(freshData);
-      window.dispatchEvent(new Event('portfolioDataUpdated'));
-      window.location.reload();
+      try {
+        await resetPortfolioData();
+        clearCache();
+        const freshData = await getPortfolioDataAsync(true);
+        setData(freshData);
+        setOriginalData(JSON.parse(JSON.stringify(freshData)));
+        window.dispatchEvent(new Event('portfolioDataUpdated'));
+        setTimeout(() => {
+          window.location.reload();
+        }, 500);
+      } catch (error) {
+        console.error('Error resetting data:', error);
+        alert('Failed to reset data. Please try again.');
+      }
     }
   };
 
