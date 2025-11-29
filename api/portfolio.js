@@ -184,23 +184,34 @@ router.get('/', asyncHandler(async (req, res) => {
     }
     
     const connectionStart = Date.now();
+    let connectionSuccess = false;
+    
     try {
-      await connectMongo(2);
+      await Promise.race([
+        connectMongo(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Connection timeout')), 5000))
+      ]);
       const connectionTime = Date.now() - connectionStart;
-      console.log(`⏱️ MongoDB connection took ${connectionTime}ms`);
+      connectionSuccess = isMongoConnected();
+      
+      if (connectionSuccess) {
+        if (connectionTime > 2000) {
+          console.warn(`⚠️ Slow MongoDB connection: ${connectionTime}ms`);
+        } else {
+          console.log(`✅ MongoDB connected in ${connectionTime}ms`);
+        }
+      } else {
+        console.error('❌ MongoDB not connected after connection attempt');
+        return res.status(200).json({ 
+          data: defaultPortfolioData, 
+          isCustomized: false,
+          version: Date.now(),
+          timestamp: new Date().toISOString()
+        });
+      }
     } catch (mongoError) {
       const connectionTime = Date.now() - connectionStart;
       console.error(`❌ MongoDB connection failed after ${connectionTime}ms:`, mongoError.message);
-      return res.status(200).json({ 
-        data: defaultPortfolioData, 
-        isCustomized: false,
-        version: Date.now(),
-        timestamp: new Date().toISOString()
-      });
-    }
-    
-    if (!isMongoConnected()) {
-      console.error('❌ MongoDB not connected after connection attempt');
       return res.status(200).json({ 
         data: defaultPortfolioData, 
         isCustomized: false,
@@ -212,26 +223,27 @@ router.get('/', asyncHandler(async (req, res) => {
     try {
       const queryStart = Date.now();
       const models = await getPortfolioModels();
-      let portfolio = await models.Portfolio.findOne().lean().maxTimeMS(3000);
+      let portfolio = await models.Portfolio.findOne().lean().maxTimeMS(2000);
       
       if (!portfolio) {
-        try {
-          const mongoose = (await import('./mongodb.js')).default;
-          if (mongoose.connection.readyState === 1) {
+        const mongoose = (await import('./mongodb.js')).default;
+        if (mongoose.connection.readyState === 1) {
+          try {
             const db = mongoose.connection.db;
-            const oldCount = await db.collection('portfolios').countDocuments({}, { maxTimeMS: 2000 }).catch(() => 0);
+            const oldCount = await Promise.race([
+              db.collection('portfolios').countDocuments({}, { maxTimeMS: 1000 }),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 1000))
+            ]).catch(() => 0);
             
             if (oldCount > 0) {
               const OldPortfolioModule = await import('../server/models/Portfolio.js');
               const OldPortfolio = OldPortfolioModule.createPortfolioModel(mongoose);
-              const migrated = await migrateOldData(OldPortfolio);
-              if (migrated) {
-                portfolio = await models.Portfolio.findOne().lean().maxTimeMS(3000);
-              }
+              await migrateOldData(OldPortfolio).catch(() => {});
+              portfolio = await models.Portfolio.findOne().lean().maxTimeMS(2000);
             }
+          } catch (migrationError) {
+            console.error('Migration error:', migrationError.message);
           }
-        } catch (migrationError) {
-          console.error('Migration error:', migrationError.message);
         }
       }
 

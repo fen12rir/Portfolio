@@ -279,7 +279,7 @@ export const getPortfolioDataAsync = async (forceRefresh = false) => {
   if (!forceRefresh && cachedData && isCacheValid() && !isDefaultData(cachedData) && !isLoading) {
     return cachedData;
   }
-  const result = await initializeCache(5000, forceRefresh);
+  const result = await initializeCache(20000, forceRefresh);
   return result.data || defaultPortfolioData;
 };
 
@@ -287,12 +287,12 @@ export const getPortfolioDataWithStatus = async (forceRefresh = false) => {
   if (!forceRefresh && cachedData && isCacheValid() && !isDefaultData(cachedData) && !isLoading) {
     return { data: cachedData, isCustomized: true };
   }
-  return await initializeCache(5000, forceRefresh);
+  return await initializeCache(20000, forceRefresh);
 };
 
 export const refreshPortfolioData = async () => {
   clearCache();
-  const result = await initializeCache(5000, true);
+  const result = await initializeCache(20000, true);
   return result.data;
 };
 
@@ -365,7 +365,7 @@ export const savePortfolioData = async (data, isPartialUpdate = false) => {
 
       const result = await response.json();
       clearCache();
-      const freshResult = await initializeCache(5000, true);
+      const freshResult = await initializeCache(20000, true);
       if (freshResult && freshResult.data) {
         cachedData = freshResult.data;
         cacheTimestamp = Date.now();

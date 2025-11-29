@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 let cachedConnection = null;
 let isConnecting = false;
 let connectionPromise = null;
-const CONNECTION_TIMEOUT = 6000;
+const CONNECTION_TIMEOUT = 4000;
 
 const getConnection = () => {
   if (mongoose.connection.readyState === 1) {
@@ -53,12 +53,13 @@ export const connectMongo = async () => {
       }
 
       const options = {
-        serverSelectionTimeoutMS: 5000,
-        socketTimeoutMS: 20000,
-        connectTimeoutMS: 5000,
+        serverSelectionTimeoutMS: 3000,
+        socketTimeoutMS: 15000,
+        connectTimeoutMS: 3000,
         maxPoolSize: 1,
         minPoolSize: 1,
         bufferCommands: false,
+        directConnection: false,
       };
 
       await Promise.race([
