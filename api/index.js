@@ -10,11 +10,20 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// Middleware to handle Vercel path rewrites - strip /api prefix if present
+app.use((req, res, next) => {
+  if (req.url.startsWith('/api/')) {
+    req.url = req.url.replace('/api', '');
+  }
+  next();
+});
+
 // Routes - ensure portfolioRoutes is a valid router
-if (portfolioRoutes && typeof portfolioRoutes === 'function') {
+// Express routers are objects with a handle method, not functions
+if (portfolioRoutes && typeof portfolioRoutes === 'object' && typeof portfolioRoutes.handle === 'function') {
   app.use('/portfolio', portfolioRoutes);
 } else {
-  console.error('portfolioRoutes is not a valid router:', typeof portfolioRoutes);
+  console.error('portfolioRoutes is not a valid router:', typeof portfolioRoutes, portfolioRoutes);
   app.use('/portfolio', (req, res) => {
     res.status(500).json({ error: 'Portfolio routes not available' });
   });
