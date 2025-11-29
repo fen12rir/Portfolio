@@ -13,21 +13,27 @@ export const usePortfolio = () => {
 };
 
 export const PortfolioProvider = ({ children }) => {
-  // Start with default data immediately - don't wait for API
-  const [portfolioData, setPortfolioData] = useState(defaultPortfolioData);
-  const [isLoading, setIsLoading] = useState(false); // Start as false since we have default data
+  // Start with null - don't show default data until API responds
+  const [portfolioData, setPortfolioData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const loadPortfolioData = async () => {
     try {
-      // Don't set loading to true - we already have default data to show
+      setIsLoading(true);
       const data = await getPortfolioDataAsync();
-      // Only update if we got valid data from server
+      // Set data from API (or default if API failed)
       if (data && Object.keys(data).length > 0) {
         setPortfolioData(data);
+      } else {
+        // Fallback to default data if API returns empty
+        setPortfolioData(defaultPortfolioData);
       }
     } catch (error) {
       console.error('Error loading portfolio data:', error);
-      // Keep default data on error
+      // On error, use default data
+      setPortfolioData(defaultPortfolioData);
+    } finally {
+      setIsLoading(false);
     }
   };
 

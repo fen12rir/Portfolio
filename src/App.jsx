@@ -62,8 +62,8 @@ const AppContent = () => {
     }
   }, [currentPath, isAuthenticated, isLoading]);
 
-  // Only show loading screen for auth, not portfolio data (we have defaults)
-  if (authLoading) {
+  // Show loading screen while auth or portfolio data is loading
+  if (isLoading || !portfolioData) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-stone-900">
         <div className="text-center">
@@ -71,7 +71,7 @@ const AppContent = () => {
             href="#home" 
             className="text-2xl font-bold bg-gradient-to-r from-teal-500 to-emerald-400 bg-clip-text text-transparent hover:from-teal-400 hover:to-emerald-300 transition-all duration-300 inline-block"
           >
-            {getLogoName()}
+            {portfolioData ? getLogoName() : 'Portfolio'}
           </a>
         </div>
       </div>
