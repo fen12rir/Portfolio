@@ -206,6 +206,7 @@ router.get('/', asyncHandler(async (req, res) => {
       let portfolio = await models.Portfolio.getPortfolio();
       
       if (!portfolio) {
+        console.log('⚠️ No portfolio document found in normalized collection, checking old format...');
         try {
           const mongoose = (await import('./mongodb.js')).default;
           const db = mongoose.connection.db;
@@ -213,25 +214,34 @@ router.get('/', asyncHandler(async (req, res) => {
           const oldCount = await oldCollection.countDocuments({}, { maxTimeMS: 5000 }).catch(() => 0);
           
           if (oldCount > 0) {
+            console.log(`Found ${oldCount} document(s) in old portfolios collection, migrating...`);
             const OldPortfolioModule = await import('../server/models/Portfolio.js');
             const OldPortfolio = OldPortfolioModule.createPortfolioModel(mongoose);
             const migrated = await migrateOldData(OldPortfolio);
             if (migrated) {
               portfolio = await models.Portfolio.getPortfolio();
+              console.log('✅ Migration successful');
               try {
                 await oldCollection.drop({ maxTimeMS: 10000 });
-                console.log('Successfully migrated and dropped old portfolios collection');
+                console.log('Successfully dropped old portfolios collection');
               } catch (dropError) {
                 console.log('Migration successful but could not drop old collection:', dropError.message);
               }
+            } else {
+              console.log('⚠️ Migration failed or no data to migrate');
             }
+          } else {
+            console.log('⚠️ No data found in old collection either');
           }
         } catch (migrationError) {
           console.error('Migration attempt failed:', migrationError.message);
         }
+      } else {
+        console.log('✅ Found portfolio document in database');
       }
 
       if (!portfolio) {
+        console.log('⚠️ No portfolio found after all checks, returning default data');
         return res.status(200).json({ 
           data: defaultPortfolioData, 
           isCustomized: false,
@@ -242,6 +252,7 @@ router.get('/', asyncHandler(async (req, res) => {
 
       const fullPortfolio = await models.Portfolio.getFullPortfolio();
       if (!fullPortfolio) {
+        console.log('⚠️ getFullPortfolio returned null, portfolio exists but has no data');
         return res.status(200).json({ 
           data: defaultPortfolioData, 
           isCustomized: false,
@@ -262,6 +273,30 @@ router.get('/', asyncHandler(async (req, res) => {
         portfolio.isCustomized = true;
         await portfolio.save().catch(err => console.error('Error updating isCustomized:', err));
       }
+
+      const hasAnyData = fullPortfolio.personal?.name || 
+        (fullPortfolio.skills && fullPortfolio.skills.length > 0) ||
+        (fullPortfolio.projects && fullPortfolio.projects.length > 0) ||
+        (fullPortfolio.experience && fullPortfolio.experience.length > 0) ||
+        (fullPortfolio.education && fullPortfolio.education.length > 0);
+
+      if (!hasAnyData) {
+        console.log('⚠️ Portfolio exists but has no data, returning default');
+        return res.status(200).json({ 
+          data: defaultPortfolioData, 
+          isCustomized: false,
+          version: Date.now(),
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      console.log('✅ Returning portfolio data from database:', {
+        hasCustomData,
+        isCustomized,
+        hasPersonal: !!fullPortfolio.personal?.name,
+        skillsCount: fullPortfolio.skills?.length || 0,
+        projectsCount: fullPortfolio.projects?.length || 0
+      });
       
       return res.status(200).json({ 
         data: fullPortfolio, 

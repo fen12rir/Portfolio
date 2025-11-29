@@ -31,16 +31,37 @@ export const PortfolioProvider = ({ children }) => {
       if (!mountedRef.current) return;
       
       if (result && result.data && Object.keys(result.data).length > 0) {
-        const hasData = result.data.personal || result.data.skills?.length > 0 || result.data.projects?.length > 0;
-        if (hasData) {
+        const hasData = result.data.personal?.name || 
+          result.data.skills?.length > 0 || 
+          result.data.projects?.length > 0 ||
+          result.data.experience?.length > 0 ||
+          result.data.education?.length > 0;
+        
+        const isDefault = result.data.personal?.email === "your.email@example.com" &&
+          (!result.data.skills || result.data.skills.length === 0) &&
+          (!result.data.projects || result.data.projects.length === 0);
+        
+        if (hasData && !isDefault) {
           setPortfolioData(result.data);
-          if (!result.isCustomized && import.meta.env.DEV) {
-            console.info('ℹ️ Portfolio data loaded. Customize it in /admin if needed');
+          if (import.meta.env.DEV) {
+            console.log('✅ Portfolio data loaded:', {
+              name: result.data.personal?.name,
+              isCustomized: result.isCustomized,
+              projects: result.data.projects?.length || 0
+            });
           }
+        } else if (hasData) {
+          setPortfolioData(result.data);
         } else {
+          if (import.meta.env.DEV) {
+            console.warn('⚠️ No portfolio data found, showing setup message');
+          }
           setPortfolioData(null);
         }
       } else {
+        if (import.meta.env.DEV) {
+          console.warn('⚠️ Empty result from API');
+        }
         setPortfolioData(null);
       }
     } catch (error) {

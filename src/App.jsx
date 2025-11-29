@@ -76,7 +76,7 @@ const AppContent = () => {
     );
   }
 
-  if (!portfolioData) {
+  if (!portfolioData && !isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-stone-900 px-4">
         <div className="text-center max-w-2xl">
@@ -97,6 +97,13 @@ const AppContent = () => {
               <li>MongoDB connection failed</li>
             </ul>
           </div>
+          {import.meta.env.DEV && (
+            <div className="mt-8 p-4 bg-stone-800/50 rounded-lg text-left text-xs text-stone-500">
+              <p className="font-semibold mb-2">Debug Info:</p>
+              <p>Check browser console for API response details</p>
+              <p>API URL: {import.meta.env.VITE_API_URL || `${window.location.origin}/api`}</p>
+            </div>
+          )}
         </div>
       </div>
     );

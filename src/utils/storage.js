@@ -176,6 +176,23 @@ const initializeCache = async (timeout = 5000, forceRefresh = false) => {
         data = defaultPortfolioData;
         isCustomized = false;
       }
+
+      const hasRealData = data.personal?.name && 
+        data.personal.name !== "DIO" && 
+        data.personal.name.trim() !== "" &&
+        (data.personal.email !== "your.email@example.com" || 
+         (data.skills && data.skills.length > 0) ||
+         (data.projects && data.projects.length > 0));
+
+      if (!hasRealData && isDefaultData(data)) {
+        if (import.meta.env.DEV) {
+          console.warn('⚠️ API returned default data. Check if database has custom data.');
+        }
+      } else if (hasRealData) {
+        if (import.meta.env.DEV) {
+          console.log('✅ Loaded custom portfolio data from API');
+        }
+      }
       
       cachedData = data;
       cacheTimestamp = Date.now();
