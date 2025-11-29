@@ -1,5 +1,6 @@
 // Vercel serverless function for portfolio API routes
 import express from 'express';
+import cors from 'cors';
 import { defaultPortfolioData } from '../server/config/defaultData.js';
 import { connectMongo, isMongoConnected } from './mongodb.js';
 
@@ -41,6 +42,21 @@ const asyncHandler = (fn) => {
     Promise.resolve(fn(req, res, next)).catch(next);
   };
 };
+
+// Create Express app for this serverless function
+const app = express();
+
+// Middleware
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Mount router
+app.use('/', router);
 
 // Get portfolio data
 router.get('/', asyncHandler(async (req, res) => {
@@ -179,4 +195,5 @@ router.delete('/', asyncHandler(async (req, res) => {
   }
 }));
 
-export default router;
+// Export as Vercel serverless function
+export default app;
