@@ -117,19 +117,20 @@ export const createPortfolioNormalizedModels = (mongoose) => {
   };
 
   Portfolio.getFullPortfolio = async function() {
-    const portfolio = await this.findOne();
-    if (!portfolio) return null;
+    try {
+      const portfolio = await this.findOne();
+      if (!portfolio) return null;
 
-    const portfolioId = portfolio._id;
-    
-    const [skills, projects, experience, education, certificates, gallery] = await Promise.all([
-      Skill.find({ portfolioId }).sort({ order: 1 }).lean(),
-      Project.find({ portfolioId }).sort({ order: 1 }).lean(),
-      Experience.find({ portfolioId }).sort({ order: 1 }).lean(),
-      Education.find({ portfolioId }).sort({ order: 1 }).lean(),
-      Certificate.find({ portfolioId }).sort({ order: 1 }).lean(),
-      Gallery.find({ portfolioId }).sort({ order: 1 }).lean()
-    ]);
+      const portfolioId = portfolio._id;
+      
+      const [skills, projects, experience, education, certificates, gallery] = await Promise.all([
+        Skill.find({ portfolioId }).sort({ order: 1 }).lean().catch(() => []),
+        Project.find({ portfolioId }).sort({ order: 1 }).lean().catch(() => []),
+        Experience.find({ portfolioId }).sort({ order: 1 }).lean().catch(() => []),
+        Education.find({ portfolioId }).sort({ order: 1 }).lean().catch(() => []),
+        Certificate.find({ portfolioId }).sort({ order: 1 }).lean().catch(() => []),
+        Gallery.find({ portfolioId }).sort({ order: 1 }).lean().catch(() => [])
+      ]);
 
     return {
       personal: portfolio.personal,
@@ -173,6 +174,10 @@ export const createPortfolioNormalizedModels = (mongoose) => {
       })),
       isCustomized: portfolio.isCustomized
     };
+    } catch (error) {
+      console.error('Error in getFullPortfolio:', error);
+      return null;
+    }
   };
 
   Portfolio.updatePortfolio = async function(data) {

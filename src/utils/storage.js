@@ -111,10 +111,11 @@ export const refreshPortfolioData = async () => {
 };
 
 export const savePortfolioData = async (data, isPartialUpdate = false) => {
+  let payloadSizeMB = 0;
   try {
     const payload = JSON.stringify(data);
     const payloadSize = new Blob([payload]).size;
-    const payloadSizeMB = payloadSize / (1024 * 1024);
+    payloadSizeMB = payloadSize / (1024 * 1024);
     const apiUrl = `${API_BASE_URL}/portfolio`;
     
     console.log(`Saving portfolio data:`, {
@@ -209,7 +210,7 @@ export const savePortfolioData = async (data, isPartialUpdate = false) => {
     console.error('Save error details:', {
       url: `${API_BASE_URL}/portfolio`,
       error: errorMessage,
-      payloadSize: `${payloadSizeMB.toFixed(2)}MB`
+      payloadSize: payloadSizeMB > 0 ? `${payloadSizeMB.toFixed(2)}MB` : 'unknown'
     });
     
     return { success: false, error: errorMessage };

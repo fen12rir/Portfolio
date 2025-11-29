@@ -279,20 +279,25 @@ router.post('/', asyncHandler(async (req, res) => {
     let dataToSave = data;
     
     if (isPartialUpdate) {
-      const existingPortfolio = await models.Portfolio.getFullPortfolio();
-      const existingData = existingPortfolio || defaultPortfolioData;
+      let existingData = defaultPortfolioData;
+      try {
+        const existingPortfolio = await models.Portfolio.getFullPortfolio();
+        if (existingPortfolio) {
+          existingData = existingPortfolio;
+        }
+      } catch (fetchError) {
+        console.warn('Could not fetch existing portfolio for partial update:', fetchError.message);
+      }
       
       dataToSave = {
-        ...existingData,
-        ...data,
         personal: { ...existingData.personal, ...(data.personal || {}) },
         social: { ...existingData.social, ...(data.social || {}) },
-        skills: data.skills !== undefined ? data.skills : existingData.skills,
-        projects: data.projects !== undefined ? data.projects : existingData.projects,
-        experience: data.experience !== undefined ? data.experience : existingData.experience,
-        education: data.education !== undefined ? data.education : existingData.education,
-        certificates: data.certificates !== undefined ? data.certificates : existingData.certificates,
-        gallery: data.gallery !== undefined ? data.gallery : existingData.gallery,
+        skills: data.skills !== undefined ? data.skills : (existingData.skills || []),
+        projects: data.projects !== undefined ? data.projects : (existingData.projects || []),
+        experience: data.experience !== undefined ? data.experience : (existingData.experience || []),
+        education: data.education !== undefined ? data.education : (existingData.education || []),
+        certificates: data.certificates !== undefined ? data.certificates : (existingData.certificates || []),
+        gallery: data.gallery !== undefined ? data.gallery : (existingData.gallery || []),
       };
     }
     
