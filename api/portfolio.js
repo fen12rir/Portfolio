@@ -196,4 +196,8 @@ router.delete('/', asyncHandler(async (req, res) => {
 }));
 
 // Export as Vercel serverless function
-export default app;
+// Wrap Express app in a handler function for Vercel compatibility
+export default function handler(req, res) {
+  // Handle the request with Express app
+  return app(req, res);
+}

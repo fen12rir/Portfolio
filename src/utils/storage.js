@@ -16,7 +16,13 @@ const initializeCache = async () => {
   loadPromise = (async () => {
     try {
       isLoading = true;
-      const response = await fetch(`${API_BASE_URL}/portfolio`);
+      const apiUrl = `${API_BASE_URL}/portfolio`;
+      console.log('Fetching portfolio data from:', apiUrl);
+      
+      const response = await fetch(apiUrl);
+      
+      console.log('API Response status:', response.status, response.statusText);
+      console.log('API Response headers:', Object.fromEntries(response.headers.entries()));
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -27,16 +33,25 @@ const initializeCache = async () => {
       if (!contentType || !contentType.includes('application/json')) {
         // If we got HTML or other non-JSON, log it and use default data
         const text = await response.text();
-        console.warn('Received non-JSON response from API:', contentType, text.substring(0, 100));
+        console.warn('⚠️ Received non-JSON response from API:', {
+          url: apiUrl,
+          contentType,
+          status: response.status,
+          preview: text.substring(0, 200)
+        });
+        console.warn('💡 This usually means the API route is not deployed or not accessible.');
+        console.warn('💡 Check that /api/portfolio is properly configured in Vercel.');
         cachedData = defaultPortfolioData;
         return defaultPortfolioData;
       }
       
       const data = await response.json();
+      console.log('✅ Successfully loaded portfolio data');
       cachedData = data;
       return data;
     } catch (error) {
-      console.error('Error loading portfolio data:', error);
+      console.error('❌ Error loading portfolio data:', error);
+      console.error('💡 Falling back to default portfolio data');
       // Fallback to default data if API fails
       cachedData = defaultPortfolioData;
       return defaultPortfolioData;

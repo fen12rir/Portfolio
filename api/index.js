@@ -49,4 +49,7 @@ app.use((err, req, res, next) => {
 });
 
 // Export as Vercel serverless function
-export default app;
+// Wrap Express app in a handler function for Vercel compatibility
+export default function handler(req, res) {
+  return app(req, res);
+}
