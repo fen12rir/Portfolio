@@ -1,5 +1,3 @@
-// Vercel serverless function for portfolio API routes
-console.log('Portfolio API module loading...');
 import express from 'express';
 import cors from 'cors';
 import { defaultPortfolioData } from '../server/config/defaultData.js';
@@ -62,9 +60,7 @@ app.use('/', router);
 // Get portfolio data
 router.get('/', asyncHandler(async (req, res) => {
   try {
-    // Always return default data if MONGODB_URI is not set
     if (!process.env.MONGODB_URI) {
-      console.log('⚠️  MONGODB_URI not set - returning default data');
       return res.status(200).json(defaultPortfolioData);
     }
     
@@ -76,7 +72,6 @@ router.get('/', asyncHandler(async (req, res) => {
     }
     
     if (!isMongoConnected()) {
-      console.log('⚠️  MongoDB not connected - returning default data');
       return res.status(200).json(defaultPortfolioData);
     }
 
@@ -87,12 +82,15 @@ router.get('/', asyncHandler(async (req, res) => {
         return res.status(200).json(defaultPortfolioData);
       }
       const portfolio = await PortfolioModel.getPortfolio();
-      const data = portfolio && portfolio.data && Object.keys(portfolio.data).length > 0 
-        ? portfolio.data 
-        : defaultPortfolioData;
-      return res.status(200).json(data);
+      
+      if (!portfolio || !portfolio.data || typeof portfolio.data !== 'object' || Object.keys(portfolio.data).length === 0) {
+        return res.status(200).json(defaultPortfolioData);
+      }
+      
+      return res.status(200).json(portfolio.data);
     } catch (modelError) {
       console.error('Error with Portfolio model:', modelError);
+      console.error('Error stack:', modelError.stack);
       return res.status(200).json(defaultPortfolioData);
     }
   } catch (error) {
@@ -146,18 +144,17 @@ router.post('/', asyncHandler(async (req, res) => {
       });
     }
     
-    // If partial update, merge with existing data
+    let dataToSave = data;
+    
     if (isPartialUpdate) {
       const existingPortfolio = await PortfolioModel.getPortfolio();
       const existingData = existingPortfolio && existingPortfolio.data && Object.keys(existingPortfolio.data).length > 0
         ? existingPortfolio.data
         : defaultPortfolioData;
       
-      // Deep merge the partial update with existing data
-      const mergedData = {
+      dataToSave = {
         ...existingData,
         ...data,
-        // Deep merge nested objects
         personal: { ...existingData.personal, ...(data.personal || {}) },
         social: { ...existingData.social, ...(data.social || {}) },
         skills: data.skills !== undefined ? data.skills : existingData.skills,
@@ -167,16 +164,18 @@ router.post('/', asyncHandler(async (req, res) => {
         certificates: data.certificates !== undefined ? data.certificates : existingData.certificates,
         gallery: data.gallery !== undefined ? data.gallery : existingData.gallery,
       };
-      
-      await PortfolioModel.updatePortfolio(mergedData);
-    } else {
-      // Full update
-      await PortfolioModel.updatePortfolio(data);
+    }
+    
+    const savedPortfolio = await PortfolioModel.updatePortfolio(dataToSave);
+    
+    if (!savedPortfolio || !savedPortfolio.data) {
+      throw new Error('Failed to save portfolio data');
     }
     
     res.json({ success: true, message: 'Portfolio data saved successfully' });
   } catch (error) {
     console.error('Error saving portfolio data:', error.message);
+    console.error('Error stack:', error.stack);
     res.status(500).json({ success: false, error: 'Failed to save portfolio data', details: error.message });
   }
 }));
@@ -225,12 +224,8 @@ router.delete('/', asyncHandler(async (req, res) => {
   }
 }));
 
-// Export as Vercel serverless function
-// Wrap Express app in a handler function for Vercel compatibility
-console.log('Portfolio API handler exported');
 export default function handler(req, res) {
   try {
-    // Explicitly handle OPTIONS requests for CORS preflight
     if (req.method === 'OPTIONS') {
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -239,29 +234,12 @@ export default function handler(req, res) {
       return res.status(200).end();
     }
     
-    // Log for debugging
-    console.log('Portfolio API handler called:', {
-      method: req.method,
-      url: req.url,
-      path: req.path,
-      originalUrl: req.originalUrl
-    });
-    
-    // Normalize the URL for Express routing
-    // In Vercel, api/portfolio.js receives requests to /api/portfolio
-    // But our router expects /, so we need to adjust the URL
     const originalUrl = req.url;
     if (req.url.startsWith('/api/portfolio')) {
       req.url = req.url.replace('/api/portfolio', '') || '/';
       req.originalUrl = req.originalUrl || originalUrl;
     }
     
-    console.log('Normalized URL:', {
-      original: originalUrl,
-      normalized: req.url
-    });
-    
-    // Handle the request with Express app
     return app(req, res);
   } catch (error) {
     console.error('Error in portfolio handler:', error);

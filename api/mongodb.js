@@ -32,8 +32,6 @@ export const connectMongo = async () => {
       }
 
       const mongooseOptions = {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
         serverSelectionTimeoutMS: 5000,
         socketTimeoutMS: 45000,
       };

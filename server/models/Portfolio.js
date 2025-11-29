@@ -12,16 +12,8 @@ export const createPortfolioModel = (mongoose) => {
     timestamps: true
   });
 
-  // Static method to get portfolio data
   portfolioSchema.statics.getPortfolio = async function() {
-    let portfolio = await this.findOne();
-    
-    // If no portfolio exists, create one with default data
-    if (!portfolio) {
-      portfolio = await this.create({ data: {} });
-    }
-    
-    return portfolio;
+    return await this.findOne();
   };
 
   // Static method to update portfolio data
