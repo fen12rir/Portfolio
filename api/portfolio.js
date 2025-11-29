@@ -218,6 +218,20 @@ export default function handler(req, res) {
       originalUrl: req.originalUrl
     });
     
+    // Normalize the URL for Express routing
+    // In Vercel, api/portfolio.js receives requests to /api/portfolio
+    // But our router expects /, so we need to adjust the URL
+    const originalUrl = req.url;
+    if (req.url.startsWith('/api/portfolio')) {
+      req.url = req.url.replace('/api/portfolio', '') || '/';
+      req.originalUrl = req.originalUrl || originalUrl;
+    }
+    
+    console.log('Normalized URL:', {
+      original: originalUrl,
+      normalized: req.url
+    });
+    
     // Handle the request with Express app
     return app(req, res);
   } catch (error) {
