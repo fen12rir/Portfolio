@@ -185,11 +185,32 @@ const AdminDashboard = () => {
         if (!proceed) return;
       }
       
+      // Log what we're sending (but limit the log size)
+      const logData = {};
+      Object.keys(changedFields).forEach(section => {
+        const sectionData = changedFields[section];
+        if (section === 'projects' || section === 'gallery') {
+          // For sections with images, just log counts and sizes
+          logData[section] = Array.isArray(sectionData) 
+            ? `${sectionData.length} items` 
+            : 'object';
+        } else {
+          logData[section] = typeof sectionData === 'object' ? 'object' : sectionData;
+        }
+      });
+      
       console.log('Saving only changed fields...', {
         sections: Object.keys(changedFields),
         size: `${payloadSizeMB.toFixed(2)}MB`,
-        changedFields
+        preview: logData
       });
+      
+      if (payloadSizeMB > 4.5) {
+        alert(`Warning: Payload is ${payloadSizeMB.toFixed(2)}MB. Vercel has a 4.5MB limit. ` +
+              `Please remove or compress large images before saving.`);
+        return;
+      }
+      
       const result = await savePortfolioData(changedFields, true); // Pass true to indicate partial update
       console.log('Save result:', result);
       

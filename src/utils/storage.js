@@ -87,45 +87,75 @@ export const refreshPortfolioData = async () => {
 
 export const savePortfolioData = async (data, isPartialUpdate = false) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/portfolio`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Partial-Update': isPartialUpdate ? 'true' : 'false',
-      },
-      body: JSON.stringify(data),
-    });
+    const payload = JSON.stringify(data);
+    const payloadSize = new Blob([payload]).size;
+    const payloadSizeMB = payloadSize / (1024 * 1024);
+    
+    console.log(`Saving portfolio data: ${payloadSizeMB.toFixed(2)}MB, partial update: ${isPartialUpdate}`);
+    
+    // Add timeout to prevent hanging
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/portfolio`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Partial-Update': isPartialUpdate ? 'true' : 'false',
+        },
+        body: payload,
+        signal: controller.signal,
+      });
 
-    if (!response.ok) {
-      // Try to parse error response as JSON, but handle HTML errors
-      const contentType = response.headers.get('content-type');
-      let errorData = {};
-      if (contentType && contentType.includes('application/json')) {
-        errorData = await response.json().catch(() => ({}));
-      } else {
-        const text = await response.text();
-        console.warn('Received non-JSON error response:', text.substring(0, 100));
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        // Try to parse error response as JSON, but handle HTML errors
+        const contentType = response.headers.get('content-type');
+        let errorData = {};
+        if (contentType && contentType.includes('application/json')) {
+          errorData = await response.json().catch(() => ({}));
+        } else {
+          const text = await response.text();
+          console.warn('Received non-JSON error response:', text.substring(0, 200));
+        }
+        const errorMessage = errorData.error || errorData.message || `HTTP error! status: ${response.status}`;
+        throw new Error(errorMessage);
       }
-      const errorMessage = errorData.error || errorData.message || `HTTP error! status: ${response.status}`;
-      throw new Error(errorMessage);
-    }
 
-    // Check if response is JSON before parsing
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      const text = await response.text();
-      console.warn('Received non-JSON response from save API:', contentType, text.substring(0, 100));
-      throw new Error('Invalid response format from server');
-    }
+      // Check if response is JSON before parsing
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.warn('Received non-JSON response from save API:', contentType, text.substring(0, 200));
+        throw new Error('Invalid response format from server');
+      }
 
-    const result = await response.json();
-    // Clear cache to force refresh on next load (especially important for partial updates)
-    clearCache();
-    // Don't update cache with partial data - let it reload from server
-    return { success: true, ...result };
+      const result = await response.json();
+      // Clear cache to force refresh on next load (especially important for partial updates)
+      clearCache();
+      // Don't update cache with partial data - let it reload from server
+      return { success: true, ...result };
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      if (fetchError.name === 'AbortError') {
+        throw new Error('Request timeout - the server took too long to respond. Try reducing image sizes.');
+      }
+      throw fetchError;
+    }
   } catch (error) {
     console.error('Error saving portfolio data:', error);
-    return { success: false, error: error.message };
+    
+    // Provide more helpful error messages
+    let errorMessage = error.message;
+    if (error.message === 'Failed to fetch') {
+      errorMessage = 'Network error: Could not connect to server. Check your internet connection and try again.';
+    } else if (error.message.includes('timeout')) {
+      errorMessage = 'Request timeout: The data might be too large. Try removing or compressing images.';
+    }
+    
+    return { success: false, error: errorMessage };
   }
 };
 
