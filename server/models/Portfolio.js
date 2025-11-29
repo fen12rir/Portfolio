@@ -53,4 +53,3 @@ portfolioSchema.statics.resetPortfolio = async function(defaultData) {
 const Portfolio = mongoose.model('Portfolio', portfolioSchema);
 
 export default Portfolio;
-

@@ -32,12 +32,18 @@ app.get('/', (req, res) => {
   });
 });
 
-// Error handling middleware
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ error: 'Not found' });
+});
+
+// Error handling middleware (must be last)
 app.use((err, req, res, next) => {
   console.error('API Error:', err);
+  console.error('Error stack:', err.stack);
   res.status(500).json({ 
     error: 'Internal server error',
-    message: err.message 
+    message: process.env.NODE_ENV === 'production' ? 'An error occurred' : err.message 
   });
 });
 
