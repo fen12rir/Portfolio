@@ -471,9 +471,7 @@ const AdminDashboard = () => {
           title: '',
           issuer: '',
           date: '',
-          description: '',
           image: '',
-          credentialId: '',
           credentialUrl: '',
         },
       ],
@@ -1119,26 +1117,6 @@ const AdminDashboard = () => {
                             />
                           </div>
                           <div>
-                            <label className="block text-stone-300 mb-2">Description</label>
-                            <textarea
-                              value={certificate.description || ''}
-                              onChange={(e) => updateCertificate(index, 'description', e.target.value)}
-                              rows="3"
-                              className="w-full px-4 py-2 bg-stone-800/50 border border-stone-700/50 rounded-lg text-stone-100 focus:outline-none focus:border-teal-500/50"
-                              placeholder="Certificate description"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-stone-300 mb-2">Credential ID</label>
-                            <input
-                              type="text"
-                              value={certificate.credentialId || ''}
-                              onChange={(e) => updateCertificate(index, 'credentialId', e.target.value)}
-                              className="w-full px-4 py-2 bg-stone-800/50 border border-stone-700/50 rounded-lg text-stone-100 focus:outline-none focus:border-teal-500/50"
-                              placeholder="Credential ID or verification code"
-                            />
-                          </div>
-                          <div>
                             <label className="block text-stone-300 mb-2">Credential URL</label>
                             <input
                               type="url"
@@ -1155,7 +1133,7 @@ const AdminDashboard = () => {
                                 <div className="relative w-48 h-32 rounded-lg overflow-hidden border border-stone-700/50">
                                   <img
                                     src={certificate.image}
-                                    alt={certificate.title || 'Certificate preview'}
+                                    alt={certificate.title || certificate.name || 'Certificate preview'}
                                     className="w-full h-full object-cover"
                                   />
                                 </div>

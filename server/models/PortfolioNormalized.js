@@ -160,9 +160,11 @@ export const createPortfolioNormalizedModels = (mongoose) => {
       })),
       certificates: certificates.map(c => ({
         id: c._id.toString(),
+        title: c.name,
         name: c.name,
         issuer: c.issuer,
         date: c.date,
+        credentialUrl: c.url,
         url: c.url,
         image: c.image
       })),
@@ -271,7 +273,7 @@ export const createPortfolioNormalizedModels = (mongoose) => {
           name: cert.name || cert.title || "",
           issuer: cert.issuer || "",
           date: cert.date || "",
-          url: cert.url || "",
+          url: cert.url || cert.credentialUrl || "",
           image: cert.image || "",
           order: index
         }));
@@ -375,7 +377,7 @@ export const createPortfolioNormalizedModels = (mongoose) => {
         name: cert.name || cert.title || "",
         issuer: cert.issuer || "",
         date: cert.date || "",
-        url: cert.url || "",
+        url: cert.url || cert.credentialUrl || "",
         image: cert.image || "",
         order: index
       }));

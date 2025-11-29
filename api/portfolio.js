@@ -106,7 +106,7 @@ const migrateOldData = async (OldPortfolio) => {
         name: cert.name || cert.title || "",
         issuer: cert.issuer || "",
         date: cert.date || "",
-        url: cert.url || "",
+        url: cert.url || cert.credentialUrl || "",
         image: cert.image || "",
         order: index
       }));
