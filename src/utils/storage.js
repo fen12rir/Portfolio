@@ -127,12 +127,13 @@ const initializeCache = async (timeout = 15000, forceRefresh = false) => {
   if (loadPromise && !forceRefresh) return loadPromise;
   
   loadPromise = (async () => {
+    let timeoutId = null;
     try {
       isLoading = true;
       const apiUrl = `${API_BASE_URL}/portfolio`;
       
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
+      timeoutId = setTimeout(() => {
         controller.abort();
         console.warn('⚠️ API request timeout after', timeout, 'ms');
       }, timeout);
@@ -145,7 +146,10 @@ const initializeCache = async (timeout = 15000, forceRefresh = false) => {
         }
       });
       
-      clearTimeout(timeoutId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -206,7 +210,10 @@ const initializeCache = async (timeout = 15000, forceRefresh = false) => {
       
       return { data, isCustomized };
     } catch (error) {
-      clearTimeout(timeoutId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
       
       if (error.name === 'AbortError') {
         console.error('❌ Request timeout after', timeout, 'ms - API is too slow or MongoDB connection failed');
