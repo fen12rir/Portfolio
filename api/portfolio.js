@@ -1,7 +1,5 @@
-// Vercel serverless function for portfolio API
+// Vercel serverless function for portfolio API routes
 import express from 'express';
-import mongoose from 'mongoose';
-import cors from 'cors';
 import mongoose from 'mongoose';
 import Portfolio from '../server/models/Portfolio.js';
 import { defaultPortfolioData } from '../server/config/defaultData.js';
@@ -40,9 +38,6 @@ const connectMongo = async () => {
     console.error('❌ MongoDB connection error:', error.message);
   }
 };
-
-// Initialize connection on module load
-connectMongo();
 
 // Get portfolio data
 router.get('/', async (req, res) => {
@@ -114,4 +109,3 @@ router.delete('/', async (req, res) => {
 });
 
 export default router;
-

@@ -21,5 +21,25 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'Portfolio API',
+    endpoints: {
+      health: '/api/health',
+      portfolio: '/api/portfolio'
+    }
+  });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('API Error:', err);
+  res.status(500).json({ 
+    error: 'Internal server error',
+    message: err.message 
+  });
+});
+
 // Export as Vercel serverless function
 export default app;
