@@ -42,19 +42,6 @@ export const PortfolioProvider = ({ children }) => {
         };
         
         setPortfolioData(coreData);
-        
-        const prioritySections = ['experience', 'education'];
-        const priorityData = await getPortfolioSections(prioritySections, forceRefresh);
-        
-        if (!mountedRef.current) return;
-        
-        if (priorityData && Object.keys(priorityData).length > 0) {
-          setPortfolioData(prev => ({
-            ...prev,
-            ...priorityData
-          }));
-        }
-        
         setIsLoading(false);
         
         if (import.meta.env.DEV) {
@@ -64,57 +51,58 @@ export const PortfolioProvider = ({ children }) => {
           });
         }
         
-        const remainingSections = ['skills', 'projects', 'certificates', 'gallery'];
-        const sectionsData = await getPortfolioSections(remainingSections, forceRefresh);
-        
-        if (!mountedRef.current) return;
-        
-        if (sectionsData && Object.keys(sectionsData).length > 0) {
-          setPortfolioData(prev => ({
-            ...prev,
-            ...sectionsData
-          }));
+        const prioritySections = ['experience', 'education'];
+        getPortfolioSections(prioritySections, forceRefresh).then(priorityData => {
+          if (!mountedRef.current) return;
           
-          if (import.meta.env.DEV) {
-            console.log('✅ Portfolio sections loaded:', {
-              sections: Object.keys(sectionsData),
-              projects: sectionsData.projects?.length || 0
-            });
+          if (priorityData && Object.keys(priorityData).length > 0) {
+            setPortfolioData(prev => ({
+              ...prev,
+              ...priorityData
+            }));
           }
-        }
-        
-        const finalData = { ...coreData, ...priorityData, ...sectionsData };
-        
-        const hasData = finalData.personal?.name || 
-          (finalData.skills && finalData.skills.length > 0) || 
-          (finalData.projects && finalData.projects.length > 0) ||
-          (finalData.experience && finalData.experience.length > 0) ||
-          (finalData.education && finalData.education.length > 0);
-        
-        const isDefault = finalData.personal?.email === "your.email@example.com" &&
-          (!finalData.skills || finalData.skills.length === 0) &&
-          (!finalData.projects || finalData.projects.length === 0);
-        
-        if (!hasData || isDefault) {
+        }).catch(error => {
           if (import.meta.env.DEV) {
-            console.warn('⚠️ No portfolio data found, showing setup message');
+            console.error('Error loading priority sections:', error);
           }
-        }
+        });
+        
+        const remainingSections = ['skills', 'projects', 'certificates', 'gallery'];
+        getPortfolioSections(remainingSections, forceRefresh).then(sectionsData => {
+          if (!mountedRef.current) return;
+          
+          if (sectionsData && Object.keys(sectionsData).length > 0) {
+            setPortfolioData(prev => ({
+              ...prev,
+              ...sectionsData
+            }));
+            
+            if (import.meta.env.DEV) {
+              console.log('✅ Portfolio sections loaded:', {
+                sections: Object.keys(sectionsData),
+                projects: sectionsData.projects?.length || 0
+              });
+            }
+          }
+        }).catch(error => {
+          if (import.meta.env.DEV) {
+            console.error('Error loading remaining sections:', error);
+          }
+        });
       } else {
         if (import.meta.env.DEV) {
           console.warn('⚠️ Empty result from API');
         }
         setPortfolioData(null);
+        setIsLoading(false);
       }
     } catch (error) {
       console.error('Error loading portfolio data:', error);
       if (mountedRef.current) {
         setPortfolioData(null);
-      }
-    } finally {
-      if (mountedRef.current) {
         setIsLoading(false);
       }
+    } finally {
       loadingRef.current = false;
     }
   }, []);

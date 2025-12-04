@@ -170,98 +170,78 @@ app.use('/', router);
 
 router.get('/core', asyncHandler(async (req, res) => {
   const startTime = Date.now();
+  const defaultResponse = { 
+    data: { personal: defaultPortfolioData.personal, social: defaultPortfolioData.social }, 
+    isCustomized: false,
+    version: Date.now(),
+    timestamp: new Date().toISOString()
+  };
+  
+  if (!process.env.MONGODB_URI) {
+    return res.status(200).json(defaultResponse);
+  }
   
   try {
-    if (!process.env.MONGODB_URI) {
-      return res.status(200).json({ 
-        data: { personal: defaultPortfolioData.personal, social: defaultPortfolioData.social }, 
-        isCustomized: false,
-        version: Date.now(),
-        timestamp: new Date().toISOString()
-      });
+    const connectionPromise = Promise.race([
+      connectMongo(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Connection timeout')), 3000))
+    ]);
+    
+    await connectionPromise;
+    
+    if (!isMongoConnected()) {
+      return res.status(200).json(defaultResponse);
+    }
+  } catch (mongoError) {
+    return res.status(200).json(defaultResponse);
+  }
+
+  try {
+    const queryPromise = Promise.race([
+      (async () => {
+        const models = await getPortfolioModels();
+        const portfolio = await models.Portfolio.findOne().lean().maxTimeMS(2000);
+        
+        if (!portfolio) {
+          return null;
+        }
+
+        const corePortfolio = await models.Portfolio.getCorePortfolio();
+        
+        if (!corePortfolio) {
+          return null;
+        }
+
+        const hasCustomData = corePortfolio.personal?.email && 
+          corePortfolio.personal.email !== "your.email@example.com" &&
+          corePortfolio.personal.email !== "";
+        
+        const isCustomized = corePortfolio.isCustomized !== undefined 
+          ? corePortfolio.isCustomized 
+          : hasCustomData;
+
+        return {
+          data: {
+            personal: corePortfolio.personal,
+            social: corePortfolio.social
+          }, 
+          isCustomized: hasCustomData || isCustomized,
+          version: portfolio.updatedAt ? new Date(portfolio.updatedAt).getTime() : Date.now(),
+          timestamp: new Date().toISOString()
+        };
+      })(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Query timeout')), 4000))
+    ]);
+    
+    const result = await queryPromise;
+    
+    if (result) {
+      return res.status(200).json(result);
     }
     
-    try {
-      await Promise.race([
-        connectMongo(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Connection timeout')), 5000))
-      ]);
-      
-      if (!isMongoConnected()) {
-        return res.status(200).json({ 
-          data: { personal: defaultPortfolioData.personal, social: defaultPortfolioData.social }, 
-          isCustomized: false,
-          version: Date.now(),
-          timestamp: new Date().toISOString()
-        });
-      }
-    } catch (mongoError) {
-      return res.status(200).json({ 
-        data: { personal: defaultPortfolioData.personal, social: defaultPortfolioData.social }, 
-        isCustomized: false,
-        version: Date.now(),
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    try {
-      const models = await getPortfolioModels();
-      let portfolio = await models.Portfolio.findOne().lean().maxTimeMS(2000);
-      
-      if (!portfolio) {
-        return res.status(200).json({ 
-          data: { personal: defaultPortfolioData.personal, social: defaultPortfolioData.social }, 
-          isCustomized: false,
-          version: Date.now(),
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      const corePortfolio = await models.Portfolio.getCorePortfolio();
-      
-      if (!corePortfolio) {
-        return res.status(200).json({ 
-          data: { personal: defaultPortfolioData.personal, social: defaultPortfolioData.social }, 
-          isCustomized: false,
-          version: Date.now(),
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      const hasCustomData = corePortfolio.personal?.email && 
-        corePortfolio.personal.email !== "your.email@example.com" &&
-        corePortfolio.personal.email !== "";
-      
-      const isCustomized = corePortfolio.isCustomized !== undefined 
-        ? corePortfolio.isCustomized 
-        : hasCustomData;
-
-      const totalTime = Date.now() - startTime;
-      
-      return res.status(200).json({ 
-        data: {
-          personal: corePortfolio.personal,
-          social: corePortfolio.social
-        }, 
-        isCustomized: hasCustomData || isCustomized,
-        version: portfolio.updatedAt ? new Date(portfolio.updatedAt).getTime() : Date.now(),
-        timestamp: new Date().toISOString()
-      });
-    } catch (modelError) {
-      return res.status(200).json({ 
-        data: { personal: defaultPortfolioData.personal, social: defaultPortfolioData.social }, 
-        isCustomized: false,
-        version: Date.now(),
-        timestamp: new Date().toISOString()
-      });
-    }
+    return res.status(200).json(defaultResponse);
   } catch (error) {
-    return res.status(200).json({ 
-      data: { personal: defaultPortfolioData.personal, social: defaultPortfolioData.social }, 
-      isCustomized: false,
-      version: Date.now(),
-      timestamp: new Date().toISOString()
-    });
+    return res.status(200).json(defaultResponse);
   }
 }));
 
