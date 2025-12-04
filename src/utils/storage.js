@@ -288,7 +288,7 @@ export const getCorePortfolioData = async (forceRefresh = false) => {
   
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
     
     const response = await fetch(apiUrl, {
       signal: controller.signal,

@@ -169,7 +169,6 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/', router);
 
 router.get('/core', asyncHandler(async (req, res) => {
-  const startTime = Date.now();
   const defaultResponse = { 
     data: { personal: defaultPortfolioData.personal, social: defaultPortfolioData.social }, 
     isCustomized: false,
@@ -182,66 +181,51 @@ router.get('/core', asyncHandler(async (req, res) => {
   }
   
   try {
-    const connectionPromise = Promise.race([
-      connectMongo(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Connection timeout')), 3000))
-    ]);
-    
-    await connectionPromise;
+    if (!isMongoConnected()) {
+      await connectMongo();
+    }
     
     if (!isMongoConnected()) {
+      return res.status(503).json({ 
+        error: 'MongoDB connection failed',
+        ...defaultResponse
+      });
+    }
+    
+    const models = await getPortfolioModels();
+    const portfolio = await models.Portfolio.findOne()
+      .select('personal social isCustomized updatedAt')
+      .lean()
+      .maxTimeMS(5000);
+    
+    if (!portfolio || !portfolio.personal) {
       return res.status(200).json(defaultResponse);
     }
-  } catch (mongoError) {
-    return res.status(200).json(defaultResponse);
-  }
 
-  try {
-    const queryPromise = Promise.race([
-      (async () => {
-        const models = await getPortfolioModels();
-        const portfolio = await models.Portfolio.findOne().lean().maxTimeMS(2000);
-        
-        if (!portfolio) {
-          return null;
-        }
-
-        const corePortfolio = await models.Portfolio.getCorePortfolio();
-        
-        if (!corePortfolio) {
-          return null;
-        }
-
-        const hasCustomData = corePortfolio.personal?.email && 
-          corePortfolio.personal.email !== "your.email@example.com" &&
-          corePortfolio.personal.email !== "";
-        
-        const isCustomized = corePortfolio.isCustomized !== undefined 
-          ? corePortfolio.isCustomized 
-          : hasCustomData;
-
-        return {
-          data: {
-            personal: corePortfolio.personal,
-            social: corePortfolio.social
-          }, 
-          isCustomized: hasCustomData || isCustomized,
-          version: portfolio.updatedAt ? new Date(portfolio.updatedAt).getTime() : Date.now(),
-          timestamp: new Date().toISOString()
-        };
-      })(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Query timeout')), 4000))
-    ]);
+    const hasCustomData = portfolio.personal?.email && 
+      portfolio.personal.email !== "your.email@example.com" &&
+      portfolio.personal.email !== "";
     
-    const result = await queryPromise;
-    
-    if (result) {
-      return res.status(200).json(result);
-    }
-    
-    return res.status(200).json(defaultResponse);
+    const isCustomized = portfolio.isCustomized !== undefined 
+      ? portfolio.isCustomized 
+      : hasCustomData;
+
+    return res.status(200).json({
+      data: {
+        personal: portfolio.personal,
+        social: portfolio.social || {}
+      }, 
+      isCustomized: hasCustomData || isCustomized,
+      version: portfolio.updatedAt ? new Date(portfolio.updatedAt).getTime() : Date.now(),
+      timestamp: new Date().toISOString()
+    });
   } catch (error) {
-    return res.status(200).json(defaultResponse);
+    console.error('Error fetching core portfolio:', error.message);
+    return res.status(503).json({ 
+      error: 'Database error',
+      message: error.message,
+      ...defaultResponse
+    });
   }
 }));
 
