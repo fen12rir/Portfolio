@@ -740,21 +740,35 @@ export default function handler(req, res) {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     }
     
-    const originalUrl = req.url || req.originalUrl || '/';
-    let path = originalUrl;
+    let path = req.url || '/';
+    const originalUrl = req.originalUrl || path;
+    
+    const xIncomingPath = req.headers['x-incoming-path'] || req.headers['x-vercel-rewrite-path'];
+    if (xIncomingPath) {
+      path = xIncomingPath;
+    }
+    
+    if (path === '/api/portfolio' && req.query && typeof req.query.path === 'string') {
+      path = `/api/portfolio/${req.query.path}`;
+    }
+    
     const queryIndex = path.indexOf('?');
     const queryString = queryIndex !== -1 ? path.substring(queryIndex) : '';
     const pathOnly = queryIndex !== -1 ? path.substring(0, queryIndex) : path;
     
     let normalizedPath = pathOnly;
-    if (normalizedPath.startsWith('/api/portfolio')) {
+    if (normalizedPath.startsWith('/api/portfolio/')) {
       normalizedPath = normalizedPath.replace('/api/portfolio', '') || '/';
-    } else if (normalizedPath.startsWith('/portfolio')) {
+    } else if (normalizedPath === '/api/portfolio') {
+      normalizedPath = '/';
+    } else if (normalizedPath.startsWith('/portfolio/')) {
       normalizedPath = normalizedPath.replace('/portfolio', '') || '/';
+    } else if (normalizedPath === '/portfolio') {
+      normalizedPath = '/';
     }
     
     req.url = normalizedPath + queryString;
-    req.originalUrl = req.originalUrl || originalUrl;
+    req.originalUrl = originalUrl;
     
     return app(req, res);
   } catch (error) {
