@@ -740,11 +740,21 @@ export default function handler(req, res) {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     }
     
-    const originalUrl = req.url;
-    if (req.url.startsWith('/api/portfolio')) {
-      req.url = req.url.replace('/api/portfolio', '') || '/';
-      req.originalUrl = req.originalUrl || originalUrl;
+    const originalUrl = req.url || req.originalUrl || '/';
+    let path = originalUrl;
+    const queryIndex = path.indexOf('?');
+    const queryString = queryIndex !== -1 ? path.substring(queryIndex) : '';
+    const pathOnly = queryIndex !== -1 ? path.substring(0, queryIndex) : path;
+    
+    let normalizedPath = pathOnly;
+    if (normalizedPath.startsWith('/api/portfolio')) {
+      normalizedPath = normalizedPath.replace('/api/portfolio', '') || '/';
+    } else if (normalizedPath.startsWith('/portfolio')) {
+      normalizedPath = normalizedPath.replace('/portfolio', '') || '/';
     }
+    
+    req.url = normalizedPath + queryString;
+    req.originalUrl = req.originalUrl || originalUrl;
     
     return app(req, res);
   } catch (error) {
