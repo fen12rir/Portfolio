@@ -168,6 +168,215 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 // Mount router
 app.use('/', router);
 
+router.get('/core', asyncHandler(async (req, res) => {
+  const startTime = Date.now();
+  
+  try {
+    if (!process.env.MONGODB_URI) {
+      return res.status(200).json({ 
+        data: { personal: defaultPortfolioData.personal, social: defaultPortfolioData.social }, 
+        isCustomized: false,
+        version: Date.now(),
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    try {
+      await Promise.race([
+        connectMongo(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Connection timeout')), 5000))
+      ]);
+      
+      if (!isMongoConnected()) {
+        return res.status(200).json({ 
+          data: { personal: defaultPortfolioData.personal, social: defaultPortfolioData.social }, 
+          isCustomized: false,
+          version: Date.now(),
+          timestamp: new Date().toISOString()
+        });
+      }
+    } catch (mongoError) {
+      return res.status(200).json({ 
+        data: { personal: defaultPortfolioData.personal, social: defaultPortfolioData.social }, 
+        isCustomized: false,
+        version: Date.now(),
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    try {
+      const models = await getPortfolioModels();
+      let portfolio = await models.Portfolio.findOne().lean().maxTimeMS(2000);
+      
+      if (!portfolio) {
+        return res.status(200).json({ 
+          data: { personal: defaultPortfolioData.personal, social: defaultPortfolioData.social }, 
+          isCustomized: false,
+          version: Date.now(),
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      const corePortfolio = await models.Portfolio.getCorePortfolio();
+      
+      if (!corePortfolio) {
+        return res.status(200).json({ 
+          data: { personal: defaultPortfolioData.personal, social: defaultPortfolioData.social }, 
+          isCustomized: false,
+          version: Date.now(),
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      const hasCustomData = corePortfolio.personal?.email && 
+        corePortfolio.personal.email !== "your.email@example.com" &&
+        corePortfolio.personal.email !== "";
+      
+      const isCustomized = corePortfolio.isCustomized !== undefined 
+        ? corePortfolio.isCustomized 
+        : hasCustomData;
+
+      const totalTime = Date.now() - startTime;
+      
+      return res.status(200).json({ 
+        data: {
+          personal: corePortfolio.personal,
+          social: corePortfolio.social
+        }, 
+        isCustomized: hasCustomData || isCustomized,
+        version: portfolio.updatedAt ? new Date(portfolio.updatedAt).getTime() : Date.now(),
+        timestamp: new Date().toISOString()
+      });
+    } catch (modelError) {
+      return res.status(200).json({ 
+        data: { personal: defaultPortfolioData.personal, social: defaultPortfolioData.social }, 
+        isCustomized: false,
+        version: Date.now(),
+        timestamp: new Date().toISOString()
+      });
+    }
+  } catch (error) {
+    return res.status(200).json({ 
+      data: { personal: defaultPortfolioData.personal, social: defaultPortfolioData.social }, 
+      isCustomized: false,
+      version: Date.now(),
+      timestamp: new Date().toISOString()
+    });
+  }
+}));
+
+router.get('/sections', asyncHandler(async (req, res) => {
+  const startTime = Date.now();
+  const includeParam = req.query.include || '';
+  const sections = includeParam.split(',').filter(s => s.trim() !== '');
+  
+  if (sections.length === 0) {
+    return res.status(400).json({ error: 'No sections specified. Use ?include=skills,projects,...' });
+  }
+  
+  try {
+    if (!process.env.MONGODB_URI) {
+      const defaultSections = {};
+      sections.forEach(section => {
+        defaultSections[section] = defaultPortfolioData[section] || [];
+      });
+      return res.status(200).json({ 
+        data: defaultSections,
+        version: Date.now(),
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    try {
+      await Promise.race([
+        connectMongo(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Connection timeout')), 5000))
+      ]);
+      
+      if (!isMongoConnected()) {
+        const defaultSections = {};
+        sections.forEach(section => {
+          defaultSections[section] = defaultPortfolioData[section] || [];
+        });
+        return res.status(200).json({ 
+          data: defaultSections,
+          version: Date.now(),
+          timestamp: new Date().toISOString()
+        });
+      }
+    } catch (mongoError) {
+      const defaultSections = {};
+      sections.forEach(section => {
+        defaultSections[section] = defaultPortfolioData[section] || [];
+      });
+      return res.status(200).json({ 
+        data: defaultSections,
+        version: Date.now(),
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    try {
+      const models = await getPortfolioModels();
+      const portfolio = await models.Portfolio.findOne().lean().maxTimeMS(2000);
+      
+      if (!portfolio) {
+        const defaultSections = {};
+        sections.forEach(section => {
+          defaultSections[section] = defaultPortfolioData[section] || [];
+        });
+        return res.status(200).json({ 
+          data: defaultSections,
+          version: Date.now(),
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      const sectionsData = await models.Portfolio.getPortfolioSections(sections);
+      
+      if (!sectionsData) {
+        const defaultSections = {};
+        sections.forEach(section => {
+          defaultSections[section] = defaultPortfolioData[section] || [];
+        });
+        return res.status(200).json({ 
+          data: defaultSections,
+          version: Date.now(),
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      const totalTime = Date.now() - startTime;
+      
+      return res.status(200).json({ 
+        data: sectionsData,
+        version: portfolio.updatedAt ? new Date(portfolio.updatedAt).getTime() : Date.now(),
+        timestamp: new Date().toISOString()
+      });
+    } catch (modelError) {
+      const defaultSections = {};
+      sections.forEach(section => {
+        defaultSections[section] = defaultPortfolioData[section] || [];
+      });
+      return res.status(200).json({ 
+        data: defaultSections,
+        version: Date.now(),
+        timestamp: new Date().toISOString()
+      });
+    }
+  } catch (error) {
+    const defaultSections = {};
+    sections.forEach(section => {
+      defaultSections[section] = defaultPortfolioData[section] || [];
+    });
+    return res.status(200).json({ 
+      data: defaultSections,
+      version: Date.now(),
+      timestamp: new Date().toISOString()
+    });
+  }
+}));
+
 // Get portfolio data
 router.get('/', asyncHandler(async (req, res) => {
   const startTime = Date.now();

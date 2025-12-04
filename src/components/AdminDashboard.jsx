@@ -1,55 +1,176 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { getPortfolioData, getPortfolioDataAsync, savePortfolioData, resetPortfolioData, clearCache } from '../utils/storage';
+import { getPortfolioData, getCorePortfolioData, getPortfolioSections, savePortfolioData, resetPortfolioData, clearCache } from '../utils/storage';
 
 const AdminDashboard = () => {
   const { logout, setPassword } = useAuth();
-  const [data, setData] = useState(getPortfolioData());
-  const [originalData, setOriginalData] = useState(null); // Track original data for comparison
+  const defaultData = getPortfolioData();
+  const [data, setData] = useState({
+    personal: defaultData.personal || {},
+    social: defaultData.social || {},
+    skills: defaultData.skills || [],
+    projects: defaultData.projects || [],
+    experience: defaultData.experience || [],
+    education: defaultData.education || [],
+    certificates: defaultData.certificates || [],
+    gallery: defaultData.gallery || []
+  });
+  const [originalData, setOriginalData] = useState(null);
   const [activeTab, setActiveTab] = useState('personal');
   const [saved, setSaved] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
+  const [loadingSections, setLoadingSections] = useState(new Set());
+  const loadedSectionsRef = useRef(new Set());
+  const mountedRef = useRef(true);
+
+  const tabToSectionMap = {
+    personal: ['personal', 'social'],
+    social: ['personal', 'social'],
+    experience: ['experience'],
+    education: ['education'],
+    gallery: ['gallery'],
+    skills: ['skills'],
+    projects: ['projects'],
+    certificates: ['certificates']
+  };
 
   useEffect(() => {
-    let mounted = true;
-    
-    const loadData = async () => {
-      try {
-        clearCache();
-        const portfolioData = await getPortfolioDataAsync(true);
-        
-        if (!mounted) return;
-        
-        if (portfolioData && Object.keys(portfolioData).length > 0) {
-          setData(portfolioData);
-          setOriginalData(JSON.parse(JSON.stringify(portfolioData)));
-          if (import.meta.env.DEV) {
-            console.log('AdminDashboard loaded data:', portfolioData.personal?.email || 'No email');
-          }
-        } else {
-          const defaultData = getPortfolioData();
-          setData(defaultData);
-          setOriginalData(JSON.parse(JSON.stringify(defaultData)));
-        }
-      } catch (error) {
-        console.error('Error loading data in AdminDashboard:', error);
-        if (mounted) {
-          const defaultData = getPortfolioData();
-          setData(defaultData);
-          setOriginalData(JSON.parse(JSON.stringify(defaultData)));
-        }
-      }
-    };
-    
-    loadData();
-    
+    mountedRef.current = true;
+    loadCoreData();
     return () => {
-      mounted = false;
+      mountedRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (activeTab && loadedSectionsRef.current.has(activeTab)) {
+      return;
+    }
+    loadTabData(activeTab);
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (!originalData && data && (data.personal || data.social)) {
+      setOriginalData(JSON.parse(JSON.stringify(data)));
+    }
+  }, [data, originalData]);
+
+  const loadCoreData = async () => {
+    try {
+      const coreResult = await getCorePortfolioData(true);
+      
+      if (!mountedRef.current) return;
+      
+      if (coreResult && coreResult.data) {
+        setData(prev => ({
+          ...prev,
+          personal: coreResult.data.personal || prev.personal,
+          social: coreResult.data.social || prev.social
+        }));
+        
+        loadedSectionsRef.current.add('personal');
+        loadedSectionsRef.current.add('social');
+        
+        if (import.meta.env.DEV) {
+          console.log('✅ AdminDashboard core data loaded');
+        }
+      }
+    } catch (error) {
+      console.error('Error loading core data:', error);
+    }
+  };
+
+  const loadTabData = async (tab) => {
+    if (loadedSectionsRef.current.has(tab)) {
+      return;
+    }
+
+    const sections = tabToSectionMap[tab];
+    if (!sections) return;
+
+    const sectionsToLoad = sections.filter(section => {
+      if (section === 'personal' || section === 'social') {
+        return !loadedSectionsRef.current.has(section);
+      }
+      return !loadedSectionsRef.current.has(section);
+    });
+
+    if (sectionsToLoad.length === 0) {
+      loadedSectionsRef.current.add(tab);
+      return;
+    }
+
+    setLoadingSections(prev => {
+      const newSet = new Set(prev);
+      sectionsToLoad.forEach(s => newSet.add(s));
+      return newSet;
+    });
+
+    try {
+      const coreSections = sectionsToLoad.filter(s => s === 'personal' || s === 'social');
+      const otherSections = sectionsToLoad.filter(s => s !== 'personal' && s !== 'social');
+
+      let updates = {};
+
+      if (coreSections.length > 0) {
+        const coreResult = await getCorePortfolioData(true);
+        if (coreResult && coreResult.data) {
+          if (coreResult.data.personal) updates.personal = coreResult.data.personal;
+          if (coreResult.data.social) updates.social = coreResult.data.social;
+          coreSections.forEach(s => loadedSectionsRef.current.add(s));
+        }
+      }
+
+      if (otherSections.length > 0) {
+        const sectionsData = await getPortfolioSections(otherSections, true);
+        if (sectionsData && Object.keys(sectionsData).length > 0) {
+          Object.keys(sectionsData).forEach(section => {
+            updates[section] = sectionsData[section] || [];
+            loadedSectionsRef.current.add(section);
+          });
+        }
+      }
+
+      if (!mountedRef.current) return;
+
+      if (Object.keys(updates).length > 0) {
+        setData(prev => {
+          const newData = { ...prev, ...updates };
+          if (!originalData) {
+            setOriginalData(JSON.parse(JSON.stringify(newData)));
+          } else {
+            setOriginalData(prevOriginal => {
+              const updatedOriginal = JSON.parse(JSON.stringify(prevOriginal));
+              Object.keys(updates).forEach(key => {
+                updatedOriginal[key] = newData[key];
+              });
+              return updatedOriginal;
+            });
+          }
+          return newData;
+        });
+      }
+      
+      loadedSectionsRef.current.add(tab);
+
+      if (import.meta.env.DEV) {
+        console.log(`✅ AdminDashboard loaded tab: ${tab}`, {
+          sections: sectionsToLoad
+        });
+      }
+    } catch (error) {
+      console.error(`Error loading tab data for ${tab}:`, error);
+    } finally {
+      setLoadingSections(prev => {
+        const newSet = new Set(prev);
+        sectionsToLoad.forEach(s => newSet.delete(s));
+        return newSet;
+      });
+    }
+  };
 
   // Helper function to remove base64 images that haven't changed (keep only new/changed images)
   const optimizeImageData = (data, original) => {
@@ -245,10 +366,27 @@ const AdminDashboard = () => {
       if (result && result.success !== false) {
         setSaved(true);
         clearCache();
+        loadedSectionsRef.current.clear();
         
-        const freshData = await getPortfolioDataAsync(true);
+        const coreResult = await getCorePortfolioData(true);
+        const allSections = ['skills', 'projects', 'experience', 'education', 'certificates', 'gallery'];
+        const sectionsData = await getPortfolioSections(allSections, true);
+        
+        const freshData = {
+          personal: coreResult.data.personal || data.personal,
+          social: coreResult.data.social || data.social,
+          ...sectionsData
+        };
+        
         setData(freshData);
         setOriginalData(JSON.parse(JSON.stringify(freshData)));
+        allSections.forEach(s => loadedSectionsRef.current.add(s));
+        loadedSectionsRef.current.add('personal');
+        loadedSectionsRef.current.add('social');
+        ['personal', 'social', 'experience', 'education', 'gallery', 'skills', 'projects', 'certificates'].forEach(tab => {
+          loadedSectionsRef.current.add(tab);
+        });
+        
         console.log('Data refreshed:', freshData);
         
         window.dispatchEvent(new Event('portfolioDataUpdated'));
@@ -273,9 +411,27 @@ const AdminDashboard = () => {
       try {
         await resetPortfolioData();
         clearCache();
-        const freshData = await getPortfolioDataAsync(true);
+        loadedSectionsRef.current.clear();
+        
+        const coreResult = await getCorePortfolioData(true);
+        const allSections = ['skills', 'projects', 'experience', 'education', 'certificates', 'gallery'];
+        const sectionsData = await getPortfolioSections(allSections, true);
+        
+        const freshData = {
+          personal: coreResult.data.personal || defaultData.personal,
+          social: coreResult.data.social || defaultData.social,
+          ...sectionsData
+        };
+        
         setData(freshData);
         setOriginalData(JSON.parse(JSON.stringify(freshData)));
+        allSections.forEach(s => loadedSectionsRef.current.add(s));
+        loadedSectionsRef.current.add('personal');
+        loadedSectionsRef.current.add('social');
+        ['personal', 'social', 'experience', 'education', 'gallery', 'skills', 'projects', 'certificates'].forEach(tab => {
+          loadedSectionsRef.current.add(tab);
+        });
+        
         window.dispatchEvent(new Event('portfolioDataUpdated'));
         setTimeout(() => {
           window.location.reload();
@@ -719,19 +875,37 @@ const AdminDashboard = () => {
           <div className="flex">
             <div className="w-64 border-r border-stone-700/50 p-4">
               <nav className="space-y-2">
-                {tabs.map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${
-                      activeTab === tab.id
-                        ? 'bg-teal-500/20 text-teal-400 border border-teal-500/30'
-                        : 'text-stone-400 hover:text-stone-300 hover:bg-stone-800/50'
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
+                {tabs.map((tab) => {
+                  const isLoading = Array.from(loadingSections).some(section => 
+                    tabToSectionMap[tab.id]?.includes(section)
+                  );
+                  const isLoaded = loadedSectionsRef.current.has(tab.id);
+                  
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`w-full text-left px-4 py-2 rounded-lg transition-colors flex items-center justify-between ${
+                        activeTab === tab.id
+                          ? 'bg-teal-500/20 text-teal-400 border border-teal-500/30'
+                          : 'text-stone-400 hover:text-stone-300 hover:bg-stone-800/50'
+                      }`}
+                    >
+                      <span>{tab.label}</span>
+                      {isLoading && (
+                        <svg className="w-4 h-4 animate-spin text-teal-400" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      )}
+                      {isLoaded && !isLoading && (
+                        <svg className="w-4 h-4 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </button>
+                  );
+                })}
               </nav>
             </div>
 

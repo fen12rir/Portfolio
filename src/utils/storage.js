@@ -283,6 +283,112 @@ export const getPortfolioDataAsync = async (forceRefresh = false) => {
   return result.data || defaultPortfolioData;
 };
 
+export const getCorePortfolioData = async (forceRefresh = false) => {
+  const apiUrl = `${API_BASE_URL}/portfolio/core`;
+  
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    
+    const response = await fetch(apiUrl, {
+      signal: controller.signal,
+      headers: {
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
+      }
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      return { 
+        data: { personal: defaultPortfolioData.personal, social: defaultPortfolioData.social }, 
+        isCustomized: false 
+      };
+    }
+    
+    const result = await response.json();
+    
+    let data, isCustomized;
+    if (result.data !== undefined && result.isCustomized !== undefined) {
+      data = result.data;
+      isCustomized = result.isCustomized;
+    } else {
+      data = { personal: defaultPortfolioData.personal, social: defaultPortfolioData.social };
+      isCustomized = false;
+    }
+    
+    return { data, isCustomized };
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      console.error('❌ Core data request timeout');
+    } else {
+      console.error('❌ Error fetching core portfolio data:', error.message);
+    }
+    
+    return { 
+      data: { personal: defaultPortfolioData.personal, social: defaultPortfolioData.social }, 
+      isCustomized: false 
+    };
+  }
+};
+
+export const getPortfolioSections = async (sections = [], forceRefresh = false) => {
+  if (sections.length === 0) {
+    return {};
+  }
+  
+  const apiUrl = `${API_BASE_URL}/portfolio/sections?include=${sections.join(',')}`;
+  
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    
+    const response = await fetch(apiUrl, {
+      signal: controller.signal,
+      headers: {
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
+      }
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const defaultSections = {};
+      sections.forEach(section => {
+        defaultSections[section] = defaultPortfolioData[section] || [];
+      });
+      return defaultSections;
+    }
+    
+    const result = await response.json();
+    return result.data || {};
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      console.error('❌ Sections request timeout');
+    } else {
+      console.error('❌ Error fetching portfolio sections:', error.message);
+    }
+    
+    const defaultSections = {};
+    sections.forEach(section => {
+      defaultSections[section] = defaultPortfolioData[section] || [];
+    });
+    return defaultSections;
+  }
+};
+
 export const getPortfolioDataWithStatus = async (forceRefresh = false) => {
   if (!forceRefresh && cachedData && isCacheValid() && !isDefaultData(cachedData) && !isLoading) {
     return { data: cachedData, isCustomized: true };

@@ -121,6 +121,141 @@ export const createPortfolioNormalizedModels = (mongoose) => {
     return await this.findOne();
   };
 
+  Portfolio.getCorePortfolio = async function() {
+    try {
+      const portfolio = await this.findOne().lean().maxTimeMS(2000);
+      if (!portfolio) return null;
+
+      return {
+        personal: portfolio.personal,
+        social: portfolio.social,
+        isCustomized: portfolio.isCustomized
+      };
+    } catch (error) {
+      console.error('Error in getCorePortfolio:', error);
+      return null;
+    }
+  };
+
+  Portfolio.getPortfolioSections = async function(sections = []) {
+    try {
+      const portfolio = await this.findOne().lean().maxTimeMS(2000);
+      if (!portfolio) return null;
+
+      const portfolioId = portfolio._id;
+      const result = {};
+      const queries = [];
+
+      if (sections.includes('skills')) {
+        queries.push(
+          Skill.find({ portfolioId }).select('name level order').sort({ order: 1 }).lean().maxTimeMS(2000)
+            .then(skills => ({ section: 'skills', data: skills.map(s => ({ name: s.name, level: s.level })) }))
+            .catch(() => ({ section: 'skills', data: [] }))
+        );
+      }
+
+      if (sections.includes('projects')) {
+        queries.push(
+          Project.find({ portfolioId }).select('title description images technologies github live order').sort({ order: 1 }).lean().maxTimeMS(2000)
+            .then(projects => ({ 
+              section: 'projects', 
+              data: projects.map(p => ({
+                id: p._id.toString(),
+                title: p.title,
+                description: p.description,
+                images: p.images || [],
+                technologies: p.technologies || [],
+                github: p.github,
+                live: p.live
+              }))
+            }))
+            .catch(() => ({ section: 'projects', data: [] }))
+        );
+      }
+
+      if (sections.includes('experience')) {
+        queries.push(
+          Experience.find({ portfolioId }).select('role company period description order').sort({ order: 1 }).lean().maxTimeMS(2000)
+            .then(experience => ({ 
+              section: 'experience', 
+              data: experience.map(e => ({
+                id: e._id.toString(),
+                role: e.role,
+                company: e.company,
+                period: e.period,
+                description: e.description
+              }))
+            }))
+            .catch(() => ({ section: 'experience', data: [] }))
+        );
+      }
+
+      if (sections.includes('education')) {
+        queries.push(
+          Education.find({ portfolioId }).select('degree institution period order').sort({ order: 1 }).lean().maxTimeMS(2000)
+            .then(education => ({ 
+              section: 'education', 
+              data: education.map(e => ({
+                id: e._id.toString(),
+                degree: e.degree,
+                institution: e.institution,
+                period: e.period
+              }))
+            }))
+            .catch(() => ({ section: 'education', data: [] }))
+        );
+      }
+
+      if (sections.includes('certificates')) {
+        queries.push(
+          Certificate.find({ portfolioId }).select('name issuer date url image order').sort({ order: 1 }).lean().maxTimeMS(2000)
+            .then(certificates => ({ 
+              section: 'certificates', 
+              data: certificates.map(c => ({
+                id: c._id.toString(),
+                title: c.name,
+                name: c.name,
+                issuer: c.issuer,
+                date: c.date,
+                credentialUrl: c.url,
+                url: c.url,
+                image: c.image
+              }))
+            }))
+            .catch(() => ({ section: 'certificates', data: [] }))
+        );
+      }
+
+      if (sections.includes('gallery')) {
+        queries.push(
+          Gallery.find({ portfolioId }).select('title description url order').sort({ order: 1 }).lean().maxTimeMS(2000)
+            .then(gallery => ({ 
+              section: 'gallery', 
+              data: gallery.map(g => ({
+                id: g._id.toString(),
+                title: g.title,
+                description: g.description,
+                url: g.url
+              }))
+            }))
+            .catch(() => ({ section: 'gallery', data: [] }))
+        );
+      }
+
+      if (queries.length > 0) {
+        const results = await Promise.all(queries);
+        results.forEach(({ section, data }) => {
+          result[section] = data;
+        });
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Error in getPortfolioSections:', error);
+      return null;
+    }
+  };
+
   Portfolio.getFullPortfolio = async function() {
     try {
       const portfolio = await this.findOne().lean().maxTimeMS(3000);

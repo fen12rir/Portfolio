@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { getPortfolioDataWithStatus, clearCache } from '../utils/storage';
+import { getCorePortfolioData, getPortfolioSections, clearCache } from '../utils/storage';
 
 const PortfolioContext = createContext();
 
@@ -26,37 +26,79 @@ export const PortfolioProvider = ({ children }) => {
       loadingRef.current = true;
       setIsLoading(true);
       
-      const result = await getPortfolioDataWithStatus(forceRefresh);
+      const coreResult = await getCorePortfolioData(forceRefresh);
       
       if (!mountedRef.current) return;
       
-      if (result && result.data && Object.keys(result.data).length > 0) {
-        const hasData = result.data.personal?.name || 
-          result.data.skills?.length > 0 || 
-          result.data.projects?.length > 0 ||
-          result.data.experience?.length > 0 ||
-          result.data.education?.length > 0;
+      if (coreResult && coreResult.data) {
+        const coreData = {
+          ...coreResult.data,
+          skills: [],
+          projects: [],
+          experience: [],
+          education: [],
+          certificates: [],
+          gallery: []
+        };
         
-        const isDefault = result.data.personal?.email === "your.email@example.com" &&
-          (!result.data.skills || result.data.skills.length === 0) &&
-          (!result.data.projects || result.data.projects.length === 0);
+        setPortfolioData(coreData);
         
-        if (hasData && !isDefault) {
-          setPortfolioData(result.data);
+        const prioritySections = ['experience', 'education'];
+        const priorityData = await getPortfolioSections(prioritySections, forceRefresh);
+        
+        if (!mountedRef.current) return;
+        
+        if (priorityData && Object.keys(priorityData).length > 0) {
+          setPortfolioData(prev => ({
+            ...prev,
+            ...priorityData
+          }));
+        }
+        
+        setIsLoading(false);
+        
+        if (import.meta.env.DEV) {
+          console.log('✅ Core portfolio data loaded:', {
+            name: coreData.personal?.name,
+            isCustomized: coreResult.isCustomized
+          });
+        }
+        
+        const remainingSections = ['skills', 'projects', 'certificates', 'gallery'];
+        const sectionsData = await getPortfolioSections(remainingSections, forceRefresh);
+        
+        if (!mountedRef.current) return;
+        
+        if (sectionsData && Object.keys(sectionsData).length > 0) {
+          setPortfolioData(prev => ({
+            ...prev,
+            ...sectionsData
+          }));
+          
           if (import.meta.env.DEV) {
-            console.log('✅ Portfolio data loaded:', {
-              name: result.data.personal?.name,
-              isCustomized: result.isCustomized,
-              projects: result.data.projects?.length || 0
+            console.log('✅ Portfolio sections loaded:', {
+              sections: Object.keys(sectionsData),
+              projects: sectionsData.projects?.length || 0
             });
           }
-        } else if (hasData) {
-          setPortfolioData(result.data);
-        } else {
+        }
+        
+        const finalData = { ...coreData, ...priorityData, ...sectionsData };
+        
+        const hasData = finalData.personal?.name || 
+          (finalData.skills && finalData.skills.length > 0) || 
+          (finalData.projects && finalData.projects.length > 0) ||
+          (finalData.experience && finalData.experience.length > 0) ||
+          (finalData.education && finalData.education.length > 0);
+        
+        const isDefault = finalData.personal?.email === "your.email@example.com" &&
+          (!finalData.skills || finalData.skills.length === 0) &&
+          (!finalData.projects || finalData.projects.length === 0);
+        
+        if (!hasData || isDefault) {
           if (import.meta.env.DEV) {
             console.warn('⚠️ No portfolio data found, showing setup message');
           }
-          setPortfolioData(null);
         }
       } else {
         if (import.meta.env.DEV) {
