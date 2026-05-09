@@ -1,28 +1,12 @@
 {
-  "version": 2,
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/((?!api).*)",
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/((?!api/|assets/|.*\\..*).*)",
       "destination": "/index.html"
     }
-  ],
-  "functions": {
-    "api/index.js": {
-      "maxDuration": 30
-    },
-    "api/portfolio.js": {
-      "maxDuration": 30
-    },
-    "api/auth/*.js": {
-      "maxDuration": 10
-    },
-    "api/health.js": {
-      "maxDuration": 10
-    },
-    "api/debug.js": {
-      "maxDuration": 20
-    }
-  }
+  ]
 }

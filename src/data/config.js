@@ -31,9 +31,9 @@ export const defaultPortfolioData = {
       title: "Project One",
       description: "A modern web application built with React and Node.js. Features include real-time updates, user authentication, and responsive design.",
       images: [],
-      technologies: ["React", "Node.js", "MongoDB"],
+      technologies: ["React", "Node.js", "REST API"],
       github: "https://github.com/yourusername/project1",
-      live: "https://project1-demo.vercel.app",
+      live: "https://example.com/project1",
     },
     {
       id: 2,
@@ -42,7 +42,7 @@ export const defaultPortfolioData = {
       images: [],
       technologies: ["Next.js", "Stripe", "PostgreSQL"],
       github: "https://github.com/yourusername/project2",
-      live: "https://project2-demo.vercel.app",
+      live: "https://example.com/project2",
     },
     {
       id: 3,
@@ -51,7 +51,7 @@ export const defaultPortfolioData = {
       images: [],
       technologies: ["React", "D3.js", "Express"],
       github: "https://github.com/yourusername/project3",
-      live: "https://project3-demo.vercel.app",
+      live: "https://example.com/project3",
     },
   ],
   experience: [

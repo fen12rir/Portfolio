@@ -1,22 +1,33 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const { login } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { login, isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    window.history.pushState({}, '', '/admin');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }, [isAuthenticated]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     setError('');
+    setIsSubmitting(true);
     
-    const result = await login(password);
-    if (result.success) {
-      window.history.pushState({}, '', '/admin');
-      window.dispatchEvent(new PopStateEvent('popstate'));
-    } else {
-      setError(result.error || 'Incorrect password. Please try again.');
-      setPassword('');
+    try {
+      const result = await login(password);
+      if (!result.success) {
+        setError(result.error || 'Incorrect password. Please try again.');
+        setPassword('');
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -41,6 +52,7 @@ const Login = () => {
                 id="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                disabled={isSubmitting}
                 className="w-full px-4 py-3 bg-stone-800/50 border border-stone-700/50 rounded-lg text-stone-100 placeholder-stone-500 focus:outline-none focus:border-teal-500/50 focus:ring-2 focus:ring-teal-500/20 transition-all duration-200"
                 placeholder="Enter admin password"
                 required
@@ -56,9 +68,20 @@ const Login = () => {
 
             <button
               type="submit"
-              className="w-full px-6 py-3 bg-gradient-to-r from-teal-500 to-emerald-500 text-white rounded-lg font-semibold hover:shadow-xl hover:shadow-teal-500/30 hover:scale-105 transition-all duration-300"
+              disabled={isSubmitting}
+              className={`w-full px-6 py-3 rounded-lg font-semibold transition-all duration-300 flex items-center justify-center gap-2 ${
+                isSubmitting
+                  ? 'bg-stone-700 text-stone-300 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-teal-500 to-emerald-500 text-white hover:shadow-xl hover:shadow-teal-500/30 hover:scale-105'
+              }`}
             >
-              Login
+              {isSubmitting && (
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v3a5 5 0 00-5 5H4z"></path>
+                </svg>
+              )}
+              {isSubmitting ? 'Signing In...' : 'Login'}
             </button>
           </form>
 

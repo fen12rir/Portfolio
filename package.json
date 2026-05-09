@@ -5,21 +5,20 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:api": "node --watch server/index.js",
     "build": "vite build",
     "preview": "vite preview",
     "server": "node server/index.js",
-    "dev:server": "node --watch server/index.js",
     "auth:hash-password": "node server/scripts/generateAdminPasswordHash.mjs"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.902.0",
     "bcryptjs": "^3.0.2",
     "cloudinary": "^2.8.0",
     "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
-    "express": "^4.18.2",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.0.3",
+    "mongodb": "^6.17.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },

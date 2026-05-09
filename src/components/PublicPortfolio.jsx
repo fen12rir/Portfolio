@@ -433,18 +433,16 @@ const PublicPortfolio = () => {
 
       <footer className="portfolio-footer">
         <span>© {new Date().getFullYear()} {personal.name || 'Portfolio'}.</span>
-        {!isAuthenticated && (
-          <a
-            href="/login"
-            onClick={(event) => {
-              event.preventDefault();
-              window.history.pushState({}, '', '/login');
-              window.dispatchEvent(new PopStateEvent('popstate'));
-            }}
-          >
-            Admin
-          </a>
-        )}
+        <a
+          href={isAuthenticated ? '/admin' : '/login'}
+          onClick={(event) => {
+            event.preventDefault();
+            window.history.pushState({}, '', isAuthenticated ? '/admin' : '/login');
+            window.dispatchEvent(new PopStateEvent('popstate'));
+          }}
+        >
+          {isAuthenticated ? 'Dashboard' : 'Admin'}
+        </a>
       </footer>
     </div>
   );

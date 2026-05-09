@@ -41,7 +41,7 @@ export const logoutAdmin = async () => {
       },
     });
   } catch {
-    // Ignore logout network errors; local state still clears.
+    // Ignore logout network errors; local UI state still clears.
   }
 };
 
@@ -54,6 +54,7 @@ export const getAdminSession = async () => {
         'Cache-Control': 'no-cache',
       },
     });
+
     if (!response.ok) {
       return false;
     }
