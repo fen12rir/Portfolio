@@ -125,6 +125,25 @@ h1, h2, h3, .portfolio-logo {
   background: rgba(20, 184, 166, 0.18);
 }
 
+.portfolio-nav-button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.portfolio-nav .portfolio-nav-button {
+  color: rgba(227, 240, 236, 0.84);
+  font-size: 0.9rem;
+  padding: 0.42rem 0.8rem;
+  border-radius: 999px;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.portfolio-nav .portfolio-nav-button:hover {
+  color: #e8fff8;
+  background: rgba(20, 184, 166, 0.18);
+}
+
 .portfolio-admin-link {
   display: inline-flex;
   align-items: center;

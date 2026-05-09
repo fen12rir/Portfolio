@@ -48,6 +48,14 @@ const isPrimaryActionTarget = (target) => {
   return Boolean(target?.closest('a, button'));
 };
 
+const scrollToSection = (sectionId) => {
+  if (typeof document === 'undefined') return;
+  const element = document.getElementById(sectionId);
+  if (element) {
+    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+};
+
 const PublicPortfolio = () => {
   const { portfolioData } = usePortfolio();
   const { isAuthenticated } = useAuth();
@@ -182,14 +190,18 @@ const PublicPortfolio = () => {
       <div className="portfolio-bg-orb portfolio-bg-orb-right" />
 
       <header className="portfolio-header">
-        <a href="#top" className="portfolio-logo">
+        <button
+          type="button"
+          className="portfolio-logo portfolio-nav-button"
+          onClick={() => scrollToSection('top')}
+        >
           {personal.headerLogo || personal.name?.split(' ')[0] || 'Portfolio'}
-        </a>
+        </button>
         <nav className="portfolio-nav">
-          <a href="#about">About</a>
-          <a href="#skills">Skills</a>
-          <a href="#projects">Projects</a>
-          <a href="#contact">Contact</a>
+          <button type="button" className="portfolio-nav-button" onClick={() => scrollToSection('about')}>About</button>
+          <button type="button" className="portfolio-nav-button" onClick={() => scrollToSection('skills')}>Skills</button>
+          <button type="button" className="portfolio-nav-button" onClick={() => scrollToSection('projects')}>Projects</button>
+          <button type="button" className="portfolio-nav-button" onClick={() => scrollToSection('contact')}>Contact</button>
         </nav>
       </header>
 
@@ -205,8 +217,8 @@ const PublicPortfolio = () => {
             <p className="hero-copy">{personal.heroBio || personal.bio || 'Building practical products with clean UX.'}</p>
 
             <div className="hero-cta-row">
-              <a href="#projects" className="btn btn-primary">View Projects</a>
-              <a href="#contact" className="btn btn-ghost">Get In Touch</a>
+              <button type="button" className="btn btn-primary" onClick={() => scrollToSection('projects')}>View Projects</button>
+              <button type="button" className="btn btn-ghost" onClick={() => scrollToSection('contact')}>Get In Touch</button>
             </div>
 
             {socialLinks.length > 0 && (
