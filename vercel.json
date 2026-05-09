@@ -15,6 +15,12 @@
     "api/portfolio.js": {
       "maxDuration": 30
     },
+    "api/auth.js": {
+      "maxDuration": 10
+    },
+    "api/auth/[...path].js": {
+      "maxDuration": 10
+    },
     "api/health.js": {
       "maxDuration": 10
     },
