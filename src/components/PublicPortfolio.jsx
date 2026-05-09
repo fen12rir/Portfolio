@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useAuth } from '../context/AuthContext';
 
@@ -56,6 +56,35 @@ const scrollToSection = (sectionId) => {
   }
 };
 
+const useSwipe = (onSwipeLeft, onSwipeRight) => {
+  const touchStartX = useRef(null);
+  const touchEndX = useRef(null);
+
+  const onTouchStart = useCallback((e) => {
+    touchStartX.current = e.changedTouches[0].screenX;
+    touchEndX.current = null;
+  }, []);
+
+  const onTouchMove = useCallback((e) => {
+    touchEndX.current = e.changedTouches[0].screenX;
+  }, []);
+
+  const onTouchEnd = useCallback(() => {
+    if (touchStartX.current === null || touchEndX.current === null) return;
+    const distance = touchStartX.current - touchEndX.current;
+    const minSwipeDistance = 50;
+    if (distance > minSwipeDistance) {
+      onSwipeLeft?.();
+    } else if (distance < -minSwipeDistance) {
+      onSwipeRight?.();
+    }
+    touchStartX.current = null;
+    touchEndX.current = null;
+  }, [onSwipeLeft, onSwipeRight]);
+
+  return { onTouchStart, onTouchMove, onTouchEnd };
+};
+
 const PublicPortfolio = () => {
   const { portfolioData } = usePortfolio();
   const { isAuthenticated } = useAuth();
@@ -77,6 +106,7 @@ const PublicPortfolio = () => {
   const [projectLightboxItem, setProjectLightboxItem] = useState(null);
   const [projectLightboxIndex, setProjectLightboxIndex] = useState(0);
   const [expandedProjectKey, setExpandedProjectKey] = useState(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const projectCards = projects.slice(0, 6);
   const activeLightboxItem = lightboxIndex !== null ? galleryImages[lightboxIndex] : null;
@@ -144,6 +174,9 @@ const PublicPortfolio = () => {
     setExpandedProjectKey((prev) => (prev === projectKey ? null : projectKey));
   };
 
+  const gallerySwipe = useSwipe(showNextImage, showPreviousImage);
+  const projectSwipe = useSwipe(showNextProjectImage, showPreviousProjectImage);
+
   useEffect(() => {
     if (lightboxIndex === null && !certificateLightboxItem && !projectLightboxItem) {
       return;
@@ -193,17 +226,39 @@ const PublicPortfolio = () => {
         <button
           type="button"
           className="portfolio-logo portfolio-nav-button"
-          onClick={() => scrollToSection('top')}
+          onClick={() => { scrollToSection('top'); setMobileMenuOpen(false); }}
         >
           {personal.headerLogo || personal.name?.split(' ')[0] || 'Portfolio'}
         </button>
-        <nav className="portfolio-nav">
+        <nav className="portfolio-nav portfolio-nav-desktop">
           <button type="button" className="portfolio-nav-button" onClick={() => scrollToSection('about')}>About</button>
           <button type="button" className="portfolio-nav-button" onClick={() => scrollToSection('skills')}>Skills</button>
           <button type="button" className="portfolio-nav-button" onClick={() => scrollToSection('projects')}>Projects</button>
           <button type="button" className="portfolio-nav-button" onClick={() => scrollToSection('contact')}>Contact</button>
         </nav>
+        <button
+          type="button"
+          className="mobile-menu-toggle portfolio-nav-button"
+          onClick={() => setMobileMenuOpen((prev) => !prev)}
+          aria-label="Toggle navigation menu"
+          aria-expanded={mobileMenuOpen}
+        >
+          <span className={`hamburger-icon ${mobileMenuOpen ? 'hamburger-open' : ''}`}>
+            <span />
+            <span />
+            <span />
+          </span>
+        </button>
       </header>
+
+      {mobileMenuOpen && (
+        <nav className="mobile-nav-drawer">
+          <button type="button" className="portfolio-nav-button" onClick={() => { scrollToSection('about'); setMobileMenuOpen(false); }}>About</button>
+          <button type="button" className="portfolio-nav-button" onClick={() => { scrollToSection('skills'); setMobileMenuOpen(false); }}>Skills</button>
+          <button type="button" className="portfolio-nav-button" onClick={() => { scrollToSection('projects'); setMobileMenuOpen(false); }}>Projects</button>
+          <button type="button" className="portfolio-nav-button" onClick={() => { scrollToSection('contact'); setMobileMenuOpen(false); }}>Contact</button>
+        </nav>
+      )}
 
       <main id="top" className="portfolio-main">
         <section className="hero-card">
@@ -515,7 +570,7 @@ const PublicPortfolio = () => {
 
       {activeLightboxItem && (
         <div className="gallery-lightbox" onClick={closeLightbox} role="dialog" aria-modal="true" aria-label="Image viewer">
-          <div className="gallery-lightbox-inner" onClick={(event) => event.stopPropagation()}>
+          <div className="gallery-lightbox-inner" onClick={(event) => event.stopPropagation()} onTouchStart={gallerySwipe.onTouchStart} onTouchMove={gallerySwipe.onTouchMove} onTouchEnd={gallerySwipe.onTouchEnd}>
             <button type="button" className="gallery-lightbox-close" onClick={closeLightbox} aria-label="Close image viewer">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <path d="M6 6l12 12M18 6l-12 12" strokeWidth="2" strokeLinecap="round" />
@@ -577,7 +632,7 @@ const PublicPortfolio = () => {
 
       {projectLightboxItem && (
         <div className="gallery-lightbox" onClick={closeProjectLightbox} role="dialog" aria-modal="true" aria-label="Project viewer">
-          <div className="gallery-lightbox-inner" onClick={(event) => event.stopPropagation()}>
+          <div className="gallery-lightbox-inner" onClick={(event) => event.stopPropagation()} onTouchStart={projectSwipe.onTouchStart} onTouchMove={projectSwipe.onTouchMove} onTouchEnd={projectSwipe.onTouchEnd}>
             <button type="button" className="gallery-lightbox-close" onClick={closeProjectLightbox} aria-label="Close project viewer">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <path d="M6 6l12 12M18 6l-12 12" strokeWidth="2" strokeLinecap="round" />
