@@ -10,7 +10,7 @@ const BrandLoader = () => (
   <div className="min-h-screen flex items-center justify-center bg-stone-900">
     <div className="text-center">
       <div className="text-xs uppercase tracking-[0.5em] text-teal-400/70">Loading</div>
-      <div className="mt-4 text-3xl font-semibold bg-gradient-to-r from-teal-400 to-emerald-400 bg-clip-text text-transparent">
+      <div className="portfolio-logo mt-4 text-3xl">
         DIO
       </div>
       <div className="mt-6 flex justify-center gap-2">

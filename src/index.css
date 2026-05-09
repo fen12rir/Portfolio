@@ -539,6 +539,10 @@ h1, h2, h3, .portfolio-logo {
   background: rgba(8, 20, 24, 0.72);
 }
 
+.clickable-card {
+  cursor: pointer;
+}
+
 .project-media {
   aspect-ratio: 16 / 10;
   background: rgba(2, 8, 10, 0.8);
@@ -638,6 +642,10 @@ h1, h2, h3, .portfolio-logo {
   width: 100%;
   aspect-ratio: 4/3;
   object-fit: cover;
+}
+
+.gallery-media {
+  position: relative;
 }
 
 .gallery-open-button {
@@ -792,6 +800,9 @@ h1, h2, h3, .portfolio-logo {
 .certificate-list {
   margin-top: 1rem;
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 520px));
+  justify-content: start;
+  align-items: start;
   gap: 0.65rem;
 }
 
@@ -800,12 +811,47 @@ h1, h2, h3, .portfolio-logo {
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 0.9rem;
-  padding: 0.8rem;
+  padding: 0.72rem;
   background: rgba(8, 20, 24, 0.66);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  align-self: start;
+  gap: 0.7rem;
+}
+
+.certificate-image-wrap {
+  flex: 0 0 84px;
+  width: 84px;
+  height: 84px;
+  border-radius: 0.8rem;
+  overflow: hidden;
+  border: 1px solid rgba(171, 248, 228, 0.2);
+  background: rgba(4, 14, 18, 0.92);
+}
+
+.certificate-image-button {
+  flex: 0 0 84px;
+  width: 84px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.certificate-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.certificate-copy {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
 }
 
 .scanner-card {
@@ -875,6 +921,8 @@ h1, h2, h3, .portfolio-logo {
 }
 
 .certificate-list a {
+  align-self: center;
+  justify-self: end;
   color: #9af6de;
   border: 1px solid rgba(154, 246, 222, 0.4);
   border-radius: 999px;
@@ -932,8 +980,23 @@ h1, h2, h3, .portfolio-logo {
   }
 
   .certificate-list article {
-    flex-direction: column;
-    align-items: flex-start;
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .certificate-image-wrap {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    flex-basis: auto;
+  }
+
+  .certificate-image-button {
+    width: 100%;
+  }
+
+  .certificate-list a {
+    justify-self: start;
   }
 
   .gallery-lightbox {

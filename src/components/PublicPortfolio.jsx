@@ -24,6 +24,14 @@ const firstImage = (project) => {
   return '';
 };
 
+const projectImagesFrom = (project) => {
+  const images = safeList(project?.images).filter(isRealValue);
+  if (images.length > 0) {
+    return images;
+  }
+  return isRealValue(project?.image) ? [project.image] : [];
+};
+
 const socialLinksFrom = (social = {}, personal = {}) => {
   const links = [];
   if (isRealValue(social.github)) links.push({ label: 'GitHub', href: social.github });
@@ -34,6 +42,10 @@ const socialLinksFrom = (social = {}, personal = {}) => {
   if (emailHref) links.push({ label: 'Email', href: emailHref });
 
   return links;
+};
+
+const isPrimaryActionTarget = (target) => {
+  return Boolean(target?.closest('a, button'));
 };
 
 const PublicPortfolio = () => {
@@ -53,6 +65,9 @@ const PublicPortfolio = () => {
   const galleryImages = gallery.filter((item) => isRealValue(item.url));
   const socialLinks = socialLinksFrom(social, personal);
   const [lightboxIndex, setLightboxIndex] = useState(null);
+  const [certificateLightboxItem, setCertificateLightboxItem] = useState(null);
+  const [projectLightboxItem, setProjectLightboxItem] = useState(null);
+  const [projectLightboxIndex, setProjectLightboxIndex] = useState(0);
   const [expandedProjectKey, setExpandedProjectKey] = useState(null);
 
   const projectCards = projects.slice(0, 6);
@@ -64,6 +79,29 @@ const PublicPortfolio = () => {
 
   const closeLightbox = () => {
     setLightboxIndex(null);
+  };
+
+  const openCertificateLightbox = (item) => {
+    setCertificateLightboxItem(item);
+  };
+
+  const closeCertificateLightbox = () => {
+    setCertificateLightboxItem(null);
+  };
+
+  const openProjectLightbox = (project) => {
+    const images = projectImagesFrom(project);
+    if (images.length === 0) return;
+    setProjectLightboxItem({
+      title: project.title || 'Project',
+      images,
+    });
+    setProjectLightboxIndex(0);
+  };
+
+  const closeProjectLightbox = () => {
+    setProjectLightboxItem(null);
+    setProjectLightboxIndex(0);
   };
 
   const showPreviousImage = () => {
@@ -82,22 +120,40 @@ const PublicPortfolio = () => {
     });
   };
 
+  const showPreviousProjectImage = () => {
+    const totalImages = projectLightboxItem?.images?.length || 0;
+    if (totalImages === 0) return;
+    setProjectLightboxIndex((prev) => (prev - 1 + totalImages) % totalImages);
+  };
+
+  const showNextProjectImage = () => {
+    const totalImages = projectLightboxItem?.images?.length || 0;
+    if (totalImages === 0) return;
+    setProjectLightboxIndex((prev) => (prev + 1) % totalImages);
+  };
+
   const toggleProjectDescription = (projectKey) => {
     setExpandedProjectKey((prev) => (prev === projectKey ? null : projectKey));
   };
 
   useEffect(() => {
-    if (lightboxIndex === null) {
+    if (lightboxIndex === null && !certificateLightboxItem && !projectLightboxItem) {
       return;
     }
 
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') {
         closeLightbox();
-      } else if (event.key === 'ArrowLeft') {
+        closeCertificateLightbox();
+        closeProjectLightbox();
+      } else if (event.key === 'ArrowLeft' && lightboxIndex !== null) {
         showPreviousImage();
-      } else if (event.key === 'ArrowRight') {
+      } else if (event.key === 'ArrowLeft' && projectLightboxItem) {
+        showPreviousProjectImage();
+      } else if (event.key === 'ArrowRight' && lightboxIndex !== null) {
         showNextImage();
+      } else if (event.key === 'ArrowRight' && projectLightboxItem) {
+        showNextProjectImage();
       }
     };
 
@@ -109,7 +165,7 @@ const PublicPortfolio = () => {
       document.body.style.overflow = originalOverflow;
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [lightboxIndex, galleryImages.length]);
+  }, [lightboxIndex, certificateLightboxItem, projectLightboxItem, galleryImages.length]);
 
   useEffect(() => {
     if (lightboxIndex !== null && galleryImages.length > 0 && lightboxIndex > galleryImages.length - 1) {
@@ -284,7 +340,23 @@ const PublicPortfolio = () => {
                 const projectKey = project.id || `${project.title || 'project'}-${index}`;
                 const isDescriptionExpanded = expandedProjectKey === projectKey;
                 return (
-                  <article className="project-card scanner-card" key={projectKey}>
+                  <article
+                    className={`project-card scanner-card${isRealValue(imageSrc) ? ' clickable-card' : ''}`}
+                    key={projectKey}
+                    onClick={(event) => {
+                      if (isPrimaryActionTarget(event.target)) return;
+                      openProjectLightbox(project);
+                    }}
+                    onKeyDown={(event) => {
+                      if (!isRealValue(imageSrc)) return;
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        openProjectLightbox(project);
+                      }
+                    }}
+                    role={isRealValue(imageSrc) ? 'button' : undefined}
+                    tabIndex={isRealValue(imageSrc) ? 0 : undefined}
+                  >
                     <div className="project-media">
                       {imageSrc ? (
                         <img src={imageSrc} alt={project.title || 'Project image'} loading="lazy" />
@@ -297,7 +369,10 @@ const PublicPortfolio = () => {
                       <button
                         type="button"
                         className="project-description-toggle"
-                        onClick={() => toggleProjectDescription(projectKey)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleProjectDescription(projectKey);
+                        }}
                         aria-expanded={isDescriptionExpanded}
                       >
                         {isDescriptionExpanded ? 'Hide Description' : 'Show Description'}
@@ -312,10 +387,10 @@ const PublicPortfolio = () => {
                       </div>
                       <div className="project-links">
                         {isRealValue(project.github) && (
-                          <a href={project.github} target="_blank" rel="noopener noreferrer">Code</a>
+                          <a href={project.github} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>Code</a>
                         )}
                         {isRealValue(project.live) && (
-                          <a href={project.live} target="_blank" rel="noopener noreferrer">Live</a>
+                          <a href={project.live} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>Live</a>
                         )}
                       </div>
                     </div>
@@ -333,16 +408,24 @@ const PublicPortfolio = () => {
             </div>
             <div className="gallery-grid">
               {galleryImages.map((item, index) => (
-                <figure key={item.id || `${item.title}-${index}`} className="gallery-item scanner-card">
-                  <button
-                    type="button"
-                    className="gallery-open-button"
-                    onClick={() => openLightbox(index)}
-                    aria-label={`Open ${item.title || `gallery image ${index + 1}`}`}
-                  >
+                <figure
+                  key={item.id || `${item.title}-${index}`}
+                  className="gallery-item scanner-card clickable-card"
+                  onClick={() => openLightbox(index)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      openLightbox(index);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Open ${item.title || `gallery image ${index + 1}`}`}
+                >
+                  <div className="gallery-media">
                     <img src={item.url} alt={item.title || 'Gallery image'} loading="lazy" />
                     <span className="gallery-open-hint">Click to view</span>
-                  </button>
+                  </div>
                   <figcaption>
                     <strong>{item.title || 'Untitled'}</strong>
                     {item.description && <p>{item.description}</p>}
@@ -360,13 +443,39 @@ const PublicPortfolio = () => {
             </div>
             <div className="certificate-list">
               {certificates.slice(0, 6).map((item, index) => (
-                <article className="scanner-card" key={item.id || `${item.title}-${index}`}>
-                  <div>
+                <article
+                  className={`scanner-card${isRealValue(item.image) ? ' clickable-card' : ''}`}
+                  key={item.id || `${item.title}-${index}`}
+                  onClick={(event) => {
+                    if (!isRealValue(item.image) || isPrimaryActionTarget(event.target)) return;
+                    openCertificateLightbox(item);
+                  }}
+                  onKeyDown={(event) => {
+                    if (!isRealValue(item.image)) return;
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      openCertificateLightbox(item);
+                    }
+                  }}
+                  role={isRealValue(item.image) ? 'button' : undefined}
+                  tabIndex={isRealValue(item.image) ? 0 : undefined}
+                >
+                  {isRealValue(item.image) && (
+                    <div className="certificate-image-wrap">
+                      <img
+                        src={item.image}
+                        alt={item.title || item.name || 'Certificate image'}
+                        className="certificate-image"
+                        loading="lazy"
+                      />
+                    </div>
+                  )}
+                  <div className="certificate-copy">
                     <h3>{item.title || item.name || 'Certificate'}</h3>
                     <p>{item.issuer || 'Issuer'} {item.date ? `- ${item.date}` : ''}</p>
                   </div>
                   {isRealValue(item.credentialUrl || item.url) && (
-                    <a href={item.credentialUrl || item.url} target="_blank" rel="noopener noreferrer">Verify</a>
+                    <a href={item.credentialUrl || item.url} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>Verify</a>
                   )}
                 </article>
               ))}
@@ -426,6 +535,70 @@ const PublicPortfolio = () => {
             <div className="gallery-lightbox-meta">
               <strong>{activeLightboxItem.title || 'Untitled'}</strong>
               <span>{lightboxIndex + 1} / {galleryImages.length}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {certificateLightboxItem && (
+        <div className="gallery-lightbox" onClick={closeCertificateLightbox} role="dialog" aria-modal="true" aria-label="Certificate viewer">
+          <div className="gallery-lightbox-inner" onClick={(event) => event.stopPropagation()}>
+            <button type="button" className="gallery-lightbox-close" onClick={closeCertificateLightbox} aria-label="Close certificate viewer">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M6 6l12 12M18 6l-12 12" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </button>
+
+            <img
+              className="gallery-lightbox-image"
+              src={certificateLightboxItem.image}
+              alt={certificateLightboxItem.title || certificateLightboxItem.name || 'Certificate image'}
+            />
+
+            <div className="gallery-lightbox-meta">
+              <strong>{certificateLightboxItem.title || certificateLightboxItem.name || 'Certificate'}</strong>
+              <span>{certificateLightboxItem.issuer || 'Certificate'}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {projectLightboxItem && (
+        <div className="gallery-lightbox" onClick={closeProjectLightbox} role="dialog" aria-modal="true" aria-label="Project viewer">
+          <div className="gallery-lightbox-inner" onClick={(event) => event.stopPropagation()}>
+            <button type="button" className="gallery-lightbox-close" onClick={closeProjectLightbox} aria-label="Close project viewer">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M6 6l12 12M18 6l-12 12" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </button>
+
+            {projectLightboxItem.images.length > 1 && (
+              <button type="button" className="gallery-lightbox-nav gallery-lightbox-prev" onClick={showPreviousProjectImage} aria-label="Previous project image">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M15 18l-6-6 6-6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            )}
+
+            <img
+              className="gallery-lightbox-image"
+              src={projectLightboxItem.images[projectLightboxIndex]}
+              alt={projectLightboxItem.title || 'Project image'}
+            />
+
+            {projectLightboxItem.images.length > 1 && (
+              <button type="button" className="gallery-lightbox-nav gallery-lightbox-next" onClick={showNextProjectImage} aria-label="Next project image">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M9 6l6 6-6 6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            )}
+
+            <div className="gallery-lightbox-meta">
+              <strong>{projectLightboxItem.title || 'Project'}</strong>
+              <span>
+                {projectLightboxIndex + 1} / {projectLightboxItem.images.length}
+              </span>
             </div>
           </div>
         </div>
