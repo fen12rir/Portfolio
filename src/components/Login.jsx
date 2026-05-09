@@ -12,7 +12,8 @@ const Login = () => {
     
     const result = await login(password);
     if (result.success) {
-      window.location.hash = '#/admin';
+      window.history.pushState({}, '', '/admin');
+      window.dispatchEvent(new PopStateEvent('popstate'));
     } else {
       setError(result.error || 'Incorrect password. Please try again.');
       setPassword('');
@@ -63,10 +64,11 @@ const Login = () => {
 
           <div className="mt-6 text-center">
             <a
-              href="#/"
+              href="/"
               onClick={(e) => {
                 e.preventDefault();
-                window.location.hash = '#/';
+                window.history.pushState({}, '', '/');
+                window.dispatchEvent(new PopStateEvent('popstate'));
               }}
               className="text-stone-400 hover:text-teal-400 transition-colors text-sm"
             >

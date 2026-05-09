@@ -949,7 +949,8 @@ const AdminDashboard = () => {
               <button
                 onClick={async () => {
                   await logout();
-                  window.location.hash = '#/';
+                  window.history.pushState({}, '', '/');
+                  window.dispatchEvent(new PopStateEvent('popstate'));
                 }}
                 className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-colors"
               >

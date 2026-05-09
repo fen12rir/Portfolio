@@ -22,37 +22,54 @@ const BrandLoader = () => (
   </div>
 );
 
+const getNormalizedPath = () => {
+  const hash = typeof window !== 'undefined' ? window.location.hash : '';
+  if (hash && hash.startsWith('#/')) {
+    return hash.slice(1) || '/';
+  }
+  if (typeof window !== 'undefined') {
+    return window.location.pathname || '/';
+  }
+  return '/';
+};
+
 const AppContent = () => {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { isLoading: portfolioLoading, portfolioData } = usePortfolio();
-  const [currentPath, setCurrentPath] = useState(() => {
-    const path = window.location.hash.slice(1) || window.location.pathname;
-    return path || '/';
-  });
+  const [currentPath, setCurrentPath] = useState(getNormalizedPath);
 
   const isLoading = authLoading || portfolioLoading;
+
+  const navigateTo = (path, replace = false) => {
+    if (replace) {
+      window.history.replaceState({}, '', path);
+    } else {
+      window.history.pushState({}, '', path);
+    }
+    setCurrentPath(path);
+  };
+
   useEffect(() => {
-    const handleHashChange = () => {
-      setCurrentPath(window.location.hash.slice(1) || '/');
-    };
+    const normalizedPath = getNormalizedPath();
+    if (window.location.hash && window.location.hash.startsWith('#/')) {
+      window.history.replaceState({}, '', normalizedPath);
+    }
+    setCurrentPath(normalizedPath);
 
     const handlePopState = () => {
-      setCurrentPath(window.location.hash.slice(1) || window.location.pathname);
+      setCurrentPath(window.location.pathname || '/');
     };
 
-    window.addEventListener('hashchange', handleHashChange);
     window.addEventListener('popstate', handlePopState);
 
     return () => {
-      window.removeEventListener('hashchange', handleHashChange);
       window.removeEventListener('popstate', handlePopState);
     };
   }, []);
 
   useEffect(() => {
     if (currentPath === '/admin' && !isAuthenticated && !isLoading) {
-      window.location.hash = '#/login';
-      setCurrentPath('/login');
+      navigateTo('/login', true);
     }
   }, [currentPath, isAuthenticated, isLoading]);
 
@@ -67,7 +84,7 @@ const AppContent = () => {
           <p className="text-sm uppercase tracking-[0.4em] text-cyan-300/70">Portfolio Setup Required</p>
           <h1 className="mt-4 text-4xl font-semibold text-white">No portfolio content is configured yet.</h1>
           <p className="mt-4 text-lg text-white/65">
-            Open the <a href="#/admin" className="text-cyan-300 underline underline-offset-4">admin dashboard</a> to
+            Open the <a href="/admin" className="text-cyan-300 underline underline-offset-4">admin dashboard</a> to
             add your real content and publish the public site.
           </p>
         </div>
@@ -75,7 +92,7 @@ const AppContent = () => {
     );
   }
 
-  if (currentPath === '/login' || currentPath === '#/login') {
+  if (currentPath === '/login') {
     return (
       <Suspense fallback={<BrandLoader />}>
         <Login />
@@ -83,7 +100,7 @@ const AppContent = () => {
     );
   }
 
-  if (currentPath === '/admin' || currentPath === '#/admin') {
+  if (currentPath === '/admin') {
     if (!isAuthenticated) {
       return (
         <Suspense fallback={<BrandLoader />}>

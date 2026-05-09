@@ -60,12 +60,36 @@ export default function handler(req, res) {
   }
 
   let path = req.url || '/';
-  if (path.startsWith('/api/auth/')) {
-    path = path.replace('/api/auth', '') || '/';
-  } else if (path === '/api/auth') {
-    path = '/';
+  const originalUrl = req.originalUrl || path;
+
+  const xIncomingPath = req.headers['x-incoming-path'] || req.headers['x-vercel-rewrite-path'];
+  if (xIncomingPath) {
+    path = xIncomingPath;
   }
-  req.url = path;
+
+  if (path === '/api/auth' && req.query && typeof req.query.path === 'string') {
+    path = `/api/auth/${req.query.path}`;
+  } else if (path === '/api/auth' && req.query && Array.isArray(req.query.path) && req.query.path.length > 0) {
+    path = `/api/auth/${req.query.path.join('/')}`;
+  }
+
+  const queryIndex = path.indexOf('?');
+  const queryString = queryIndex !== -1 ? path.substring(queryIndex) : '';
+  const pathOnly = queryIndex !== -1 ? path.substring(0, queryIndex) : path;
+
+  let normalizedPath = pathOnly;
+  if (normalizedPath.startsWith('/api/auth/')) {
+    normalizedPath = normalizedPath.replace('/api/auth', '') || '/';
+  } else if (normalizedPath === '/api/auth') {
+    normalizedPath = '/';
+  } else if (normalizedPath.startsWith('/auth/')) {
+    normalizedPath = normalizedPath.replace('/auth', '') || '/';
+  } else if (normalizedPath === '/auth') {
+    normalizedPath = '/';
+  }
+
+  req.url = normalizedPath + queryString;
+  req.originalUrl = originalUrl;
 
   return app(req, res);
 }
