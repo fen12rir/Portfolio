@@ -41,7 +41,6 @@ export const setSessionCookie = (res) => {
     'Path=/',
     'HttpOnly',
     'SameSite=Lax',
-    `Max-Age=${SESSION_TTL_SECONDS}`,
   ];
 
   if (isProduction) {
