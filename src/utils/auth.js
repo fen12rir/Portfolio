@@ -60,7 +60,7 @@ export const getAdminSession = async () => {
     }
 
     const payload = await withJson(response);
-    return Boolean(payload?.authenticated || payload?.success);
+    return payload?.authenticated === true;
   } catch {
     return false;
   }
